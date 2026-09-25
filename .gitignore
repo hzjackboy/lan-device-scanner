@@ -1,0 +1,20 @@
+# 扫描产生的数据：里面有你自己网络的真实 IP / MAC / 主机名，绝不入库
+data/
+*.local.json
+
+# IEEE 厂商表：1.5MB，跑一次 python3 update_oui.py 就能重新生成
+oui.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# 编辑器 / 系统
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>局域网设备扫描</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ============ 左侧可伸缩侧边栏 ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <span class="logo">📡</span>
+      <span class="sidebar-title">局域网工具</span>
+      <button class="icon-btn collapse-btn" id="collapse-btn" title="收起 / 展开侧边栏（Ctrl+B）" aria-label="收起侧边栏">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 6l-6 6 6 6"/>
+        </svg>
+      </button>
+    </div>
+
+    <nav class="nav" id="nav">
+      <a class="nav-item" data-view="home" href="#/home" title="首页">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3.5 10.5 12 3.5l8.5 7"/>
+            <path d="M5.5 9.6V20h13V9.6"/>
+            <path d="M10 20v-5h4v5"/>
+          </svg>
+        </span>
+        <span class="nav-label">首页</span>
+      </a>
+
+      <a class="nav-item" data-view="scan" href="#/scan" title="设备扫描">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="2.2"/>
+            <path d="M12 5.2a6.8 6.8 0 0 1 6.8 6.8"/>
+            <path d="M12 1.8A10.2 10.2 0 0 1 22.2 12"/>
+            <path d="M12 18.8A6.8 6.8 0 0 0 18.8 12"/>
+            <path d="M12 22.2A10.2 10.2 0 0 0 22.2 12"/>
+          </svg>
+        </span>
+        <span class="nav-label">设备扫描</span>
+      </a>
+
+      <a class="nav-item" data-view="history" href="#/history" title="历史记录">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 7.2V12l3.4 2"/>
+          </svg>
+        </span>
+        <span class="nav-label">历史记录</span>
+        <span class="nav-badge" id="nav-history-badge">0</span>
+      </a>
+
+      <a class="nav-item" data-view="devices" href="#/devices" title="设备管理">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3.5" y="4" width="17" height="16" rx="2.5"/>
+            <path d="M7.5 9.5h9M7.5 13h9M7.5 16.5h5"/>
+          </svg>
+        </span>
+        <span class="nav-label">设备管理</span>
+        <span class="nav-badge" id="nav-devices-badge">0</span>
+      </a>
+
+      <a class="nav-item" data-view="about" href="#/about" title="关于与说明">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 11v5.2"/>
+            <path d="M12 7.5h.01"/>
+          </svg>
+        </span>
+        <span class="nav-label">关于与说明</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <span class="dot" id="live-dot"></span>
+      <span class="sidebar-foot-text">
+        <b id="foot-state">空闲</b>
+        <i id="foot-sub">v1.0.0</i>
+      </span>
+    </div>
+  </aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <!-- ============ 右侧内容区 ============ -->
+  <div class="content">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menu-btn" title="打开导航" aria-label="打开导航">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+      </button>
+      <h1 id="page-title">设备扫描</h1>
+      <span class="badge" id="version-badge">v1.0.0</span>
+      <span class="topbar-spacer"></span>
+      <span class="muted" id="host-info">检测本机网段中…</span>
+    </header>
+
+    <main>
+      <!-- ---------- 视图 0：首页（设备方块墙） ---------- -->
+      <section class="view" id="view-home" hidden>
+        <section class="panel home-head">
+          <div class="home-stats">
+            <div class="stat"><b id="home-online">0</b><span>在线设备</span></div>
+            <div class="stat"><b id="home-named">0</b><span>已知主机名</span></div>
+            <div class="stat"><b id="home-kinds">0</b><span>设备类型</span></div>
+            <div class="stat"><b id="home-vendors">0</b><span>厂商</span></div>
+          </div>
+          <div class="home-tools">
+            <input id="home-search" type="search" placeholder="搜索名称 / IP / 厂商 / 类型">
+            <label class="inline"><input type="checkbox" id="home-only-online" checked> 仅在线</label>
+            <select id="home-group">
+              <option value="">不分组</option>
+              <option value="kind">按设备类型分组</option>
+              <option value="vendor">按厂商分组</option>
+            </select>
+          </div>
+
+          <div class="auto-bar">
+            <label class="switch">
+              <input type="checkbox" id="auto-toggle">
+              <span>定时自动重扫</span>
+            </label>
+            <select id="auto-interval" title="重扫间隔">
+              <option value="900">每 15 分钟</option>
+              <option value="1800">每 30 分钟</option>
+              <option value="3600" selected>每 1 小时</option>
+              <option value="10800">每 3 小时</option>
+              <option value="21600">每 6 小时</option>
+              <option value="43200">每 12 小时</option>
+              <option value="86400">每 24 小时</option>
+            </select>
+            <span class="muted" id="auto-status">未开启</span>
+            <button id="auto-run-now" class="ghost mini" title="马上按当前设置跑一次，不影响后续排期">立即扫描一次</button>
+          </div>
+        </section>
+
+        <div class="home-layout">
+        <!-- 在线 / 离线饼图 -->
+        <section class="panel chart-panel">
+          <h2>在线 / 离线分布</h2>
+          <div class="chart-body">
+            <div class="donut-box">
+              <div id="donut"></div>
+              <div class="donut-center"><b id="donut-total">0</b><span>台设备</span></div>
+            </div>
+            <div class="chart-legend" id="chart-legend"></div>
+          </div>
+          <div class="chart-foot muted" id="chart-foot">台账读取中…</div>
+          <button id="chart-manage" class="ghost mini">去设备管理</button>
+        </section>
+
+        <section class="panel">
+          <div class="results-head">
+            <h2>设备总览 <span class="count" id="home-count">0</span></h2>
+            <span class="muted" id="home-meta">还没有扫描结果</span>
+          </div>
+          <div class="home-grid" id="home-grid"></div>
+          <div class="empty" id="home-empty">
+            还没有设备信息。去「设备扫描」跑一次，这里就会用方块图标铺满整个网段的设备。
+            <div class="empty-action"><button class="primary" id="home-go-scan">去扫描</button></div>
+          </div>
+        </section>
+        </div>
+      </section>
+      <!-- ---------- 视图 1：设备扫描 ---------- -->
+      <section class="view" id="view-scan">
+        <section class="panel controls">
+          <div class="field">
+            <label for="subnet-select">扫描网段</label>
+            <div class="row">
+              <select id="subnet-select"></select>
+              <input id="subnet-input" type="text" placeholder="10.0.0.0/24" spellcheck="false">
+            </div>
+          </div>
+
+          <div class="field">
+            <label>扫描档位</label>
+            <div class="segmented" id="profile-switch">
+              <button type="button" data-profile="fast" class="active">快速<span>10 个常用端口</span></button>
+              <button type="button" data-profile="full">完整<span>60+ 端口</span></button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>探测选项</label>
+            <div class="checks">
+              <label><input type="checkbox" id="opt-ping" checked> ICMP ping</label>
+              <label><input type="checkbox" id="opt-mdns" checked> mDNS / Bonjour</label>
+              <label><input type="checkbox" id="opt-netbios" checked> NetBIOS 名称</label>
+              <label><input type="checkbox" id="opt-dns" checked> 反向 DNS</label>
+              <label class="demo-toggle"><input type="checkbox" id="opt-demo"> 演示模式（假数据）</label>
+            </div>
+          </div>
+
+          <div class="field actions">
+            <button id="start-btn" class="primary">开始扫描</button>
+            <button id="cancel-btn" class="ghost" disabled>停止</button>
+          </div>
+        </section>
+
+        <section class="panel progress-panel">
+          <div class="progress-head">
+            <div class="phase">
+              <strong id="phase-text">尚未开始</strong>
+              <span class="muted" id="phase-sub">选择网段后点击"开始扫描"</span>
+            </div>
+            <div class="stat-cards">
+              <div class="stat"><b id="stat-found">0</b><span>在线设备</span></div>
+              <div class="stat"><b id="stat-named">0</b><span>已知主机名</span></div>
+              <div class="stat"><b id="stat-scanned">0</b><span>已探测地址</span></div>
+              <div class="stat"><b id="stat-time">0.0s</b><span>耗时</span></div>
+            </div>
+          </div>
+          <div class="bar"><div class="bar-fill" id="progress-bar"></div></div>
+          <div class="progress-foot">
+            <span class="muted" id="progress-detail">0%</span>
+            <span class="muted" id="error-text"></span>
+          </div>
+        </section>
+
+        <div class="grid">
+          <section class="panel results">
+            <div class="results-head">
+              <h2>扫描结果 <span class="count" id="result-count">0</span></h2>
+              <div class="results-tools">
+                <input id="search" type="search" placeholder="搜索 IP / 名称 / 厂商 / 端口">
+                <label class="inline"><input type="checkbox" id="only-online" checked> 仅在线</label>
+                <button id="export-csv" class="ghost" title="导出 CSV">CSV</button>
+                <button id="export-json" class="ghost" title="导出 JSON">JSON</button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table id="results-table">
+                <thead>
+                  <tr>
+                    <th class="sortable" data-key="ip">IP 地址</th>
+                    <th class="sortable" data-key="hostname">主机名</th>
+                    <th class="sortable" data-key="mac">MAC 地址</th>
+                    <th class="sortable" data-key="vendor">厂商</th>
+                    <th class="sortable" data-key="kind">设备类型</th>
+                    <th>开放端口</th>
+                    <th class="sortable num" data-key="rtt_ms">延迟</th>
+                    <th>发现方式</th>
+                  </tr>
+                </thead>
+                <tbody id="results-body"></tbody>
+              </table>
+              <div class="empty" id="empty-state">
+                还没有结果。点击"开始扫描"后设备会实时出现在这里。
+              </div>
+            </div>
+
+            <div class="map-block">
+              <div class="map-head">
+                <span class="muted">网段分布图</span>
+                <span class="legend">
+                  <i class="l-online"></i>在线
+                  <i class="l-arp"></i>仅 ARP
+                  <i class="l-offline"></i>无响应
+                </span>
+              </div>
+              <div class="map" id="subnet-map"></div>
+            </div>
+          </section>
+
+          <aside class="side">
+            <section class="panel">
+              <h2>扫描日志</h2>
+              <div class="logs" id="logs"></div>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ---------- 视图 2：历史记录 ---------- -->
+      <section class="view" id="view-history" hidden>
+        <section class="panel">
+          <div class="results-head">
+            <h2>历史记录 <span class="count" id="history-count">0</span></h2>
+            <div class="results-tools">
+              <button id="history-refresh" class="ghost">刷新</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>开始时间</th>
+                  <th>网段</th>
+                  <th>状态</th>
+                  <th class="num">在线设备</th>
+                  <th class="num">耗时</th>
+                  <th>模式</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="history-body"></tbody>
+            </table>
+            <div class="empty" id="history-empty">还没有扫描记录。回到"设备扫描"跑一次就有了。</div>
+          </div>
+        </section>
+      </section>
+
+      <!-- ---------- 视图 3：设备管理（台账） ---------- -->
+      <section class="view" id="view-devices" hidden>
+        <section class="panel home-head">
+          <div class="home-stats">
+            <div class="stat"><b id="dev-total">0</b><span>台账设备</span></div>
+            <div class="stat"><b id="dev-online">0</b><span>在线</span></div>
+            <div class="stat"><b id="dev-offline">0</b><span>已掉线</span></div>
+            <div class="stat"><b id="dev-edited">0</b><span>已编辑</span></div>
+            <div class="stat"><b id="dev-starred">0</b><span>已关注</span></div>
+          </div>
+          <div class="home-tools">
+            <input id="dev-search" type="search" placeholder="搜索名称 / IP / MAC / 厂商 / 标签 / 备注">
+            <select id="dev-state" title="在线状态">
+              <option value="all">全部设备</option>
+              <option value="online">仅在线</option>
+              <option value="offline">仅已掉线</option>
+              <option value="starred">仅已关注</option>
+              <option value="edited">仅已编辑</option>
+              <option value="ignored">仅已忽略</option>
+            </select>
+            <select id="dev-category" title="按分类筛选"></select>
+            <select id="dev-group" title="分组方式">
+              <option value="category">按分类分组</option>
+              <option value="kind">按设备类型分组</option>
+              <option value="online">按在线状态分组</option>
+              <option value="">不分组</option>
+            </select>
+            <select id="dev-sort" title="排序">
+              <option value="ip">按 IP 排序</option>
+              <option value="last_seen">按最近在线排序</option>
+              <option value="first_seen">按首次发现排序</option>
+              <option value="name">按名称排序</option>
+              <option value="seen">按出现次数排序</option>
+            </select>
+            <button id="dev-export-csv" class="ghost">导出 CSV</button>
+            <button id="dev-export-json" class="ghost">导出 JSON</button>
+            <button id="dev-refresh" class="ghost">刷新</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="results-head">
+            <h2>设备台账 <span class="count" id="dev-count">0</span></h2>
+            <span class="muted" id="dev-meta">每次扫描后自动归档，掉线的设备也留在这里</span>
+          </div>
+          <div class="table-wrap">
+            <table id="dev-table">
+              <thead>
+                <tr>
+                  <th class="star-col">★</th>
+                  <th>名称</th>
+                  <th>分类</th>
+                  <th>IP</th>
+                  <th>MAC</th>
+                  <th>厂商</th>
+                  <th>设备类型</th>
+                  <th>状态</th>
+                  <th class="num">最近在线</th>
+                  <th class="num">出现</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="dev-body"></tbody>
+            </table>
+            <div class="empty" id="dev-empty">
+              台账还是空的。去「设备扫描」跑一次，扫到的设备会自动归档到这里。
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- ---------- 视图 4：关于与说明 ---------- -->
+      <section class="view" id="view-about" hidden>
+        <section class="panel">
+          <h2>运行环境</h2>
+          <div id="about-env" class="about-block"><span class="muted">读取中…</span></div>
+        </section>
+        <section class="panel">
+          <h2>可扫描网段</h2>
+          <div id="about-ifaces" class="about-block"><span class="muted">读取中…</span></div>
+        </section>
+        <section class="panel">
+          <h2>扫描原理</h2>
+          <div class="about-block">
+            <ul class="about-list">
+              <li><b>ARP 缓存 + UDP 触发 ARP</b>：非 root 拿到真实 MAC，能发现禁 ping 的设备，局域网里最有效的一招。</li>
+              <li><b>ICMP 并发 ping</b>：拿延迟，同时补上 ARP 表里没有的在线设备。</li>
+              <li><b>mDNS / Bonjour</b>：解析 <code>_airplay</code>、<code>_googlecast</code>、<code>_ipp</code>、<code>_hap</code> 等服务，拿到设备名。</li>
+              <li><b>反向 DNS / NetBIOS</b>：拿主机名，后者是自实现的 NBSTAT 报文，专门捞 Windows 机器名。</li>
+              <li><b>TCP connect 端口探测</b>：快速档 10 个、完整档 67 个常见端口，用于设备指纹。</li>
+              <li><b>OUI 厂商库</b>：内置常见厂商 + IEEE 全量表，随机 MAC 会标成"私有/随机 MAC"。</li>
+            </ul>
+          </div>
+        </section>
+        <section class="panel">
+          <h2>HTTP 接口</h2>
+          <div id="about-api" class="about-block"></div>
+        </section>
+        <section class="panel">
+          <h2>使用提醒</h2>
+          <div class="about-block">
+            <ul class="about-list">
+              <li>服务默认监听 <code>0.0.0.0</code>，同一局域网内任何人都能打开本页并触发扫描；公共 Wi-Fi 上请用 <code>--host 127.0.0.1</code>。</li>
+              <li>ARP 只在本广播域有效，扫其他子网会退化成 ICMP + 端口探测。</li>
+              <li>端口扫描是 connect 扫描，会留下完整 TCP 连接记录，只适合在自己网络里用。</li>
+              <li>只扫描自己有权管理的网络。</li>
+            </ul>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- 设备详情 -->
+<dialog id="detail-dialog">
+  <div class="dialog-head">
+    <h3 id="detail-title">设备详情</h3>
+    <button id="detail-close" class="ghost">关闭</button>
+  </div>
+  <div class="dialog-body" id="detail-body"></div>
+</dialog>
+
+<!-- 设备管理：编辑台账条目 -->
+<dialog id="edit-dialog">
+  <div class="dialog-head">
+    <h3 id="edit-title">编辑设备</h3>
+    <button id="edit-close" class="ghost">关闭</button>
+  </div>
+  <div class="dialog-body">
+    <div class="edit-meta" id="edit-meta"></div>
+    <div class="form-grid">
+      <label>名称（别名）
+        <input type="text" id="edit-name" placeholder="留空则用系统识别到的主机名" maxlength="60">
+      </label>
+      <label>分类
+        <input type="text" id="edit-category" list="category-list" placeholder="未分类" maxlength="40">
+        <datalist id="category-list"></datalist>
+      </label>
+      <label>位置
+        <input type="text" id="edit-location" placeholder="客厅 / 书房 / 机房…" maxlength="40">
+      </label>
+      <label>标签
+        <input type="text" id="edit-tags" placeholder="用逗号分隔，如：常驻, 家人">
+      </label>
+      <label>设备类型（覆盖自动识别）
+        <input type="text" id="edit-kind" list="kind-list" placeholder="留空则用自动识别结果" maxlength="40">
+        <datalist id="kind-list"></datalist>
+      </label>
+      <label class="full">备注
+        <textarea id="edit-note" rows="3" placeholder="采购日期、账号、注意事项…" maxlength="300"></textarea>
+      </label>
+      <div class="full edit-flags">
+        <label class="inline"><input type="checkbox" id="edit-starred"> 标记为关注</label>
+        <label class="inline"><input type="checkbox" id="edit-ignored"> 忽略（首页方块墙不再显示）</label>
+      </div>
+    </div>
+    <div class="edit-actions">
+      <button id="edit-save" class="primary">保存</button>
+      <button id="edit-reset" class="ghost">恢复自动识别</button>
+      <button id="edit-delete" class="ghost danger">删除记录</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast" class="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
