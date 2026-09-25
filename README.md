@@ -6,7 +6,10 @@
 打开页面 → 选网段 → 点"开始扫描"，设备会一台台实时冒出来：IP、MAC、厂商、
 主机名、设备类型、开放端口、延迟、发现方式，还有一张网段分布热力图。
 
-```
+```bash
+git clone https://github.com/hzjackboy/lan-device-scanner.git
+cd lan-device-scanner
+python3 update_oui.py        # 可选：下载 IEEE 全量厂商表（约 4 万条）
 python3 server.py            # 或者 ./run.sh
 ```
 
