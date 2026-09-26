@@ -1,13 +1,13 @@
 #!/bin/bash
 # ============================================
-# 局域网设备扫描服务 —— 启动 / 停止 / 打开页面
+# 局域网设备扫描服务 —— 启动 / 停止 / 重启 / 打开页面
+# （单文件版，全部功能都在这一个脚本里）
 #
 # 用法：
-#   双击本文件        打开菜单，按序号选择
-#   终端带参数调用    ./局域网扫描服务.command start|stop|restart|open|status|log
-#
-# 桌面上的「启动局域网扫描.command」「关闭局域网扫描.command」
-# 是本脚本的快捷方式（分别等价于 start / stop）。
+#   双击本文件   打开菜单，按序号选择
+#                直接按回车 = 按当前状态执行默认动作
+#                （服务没跑就启动并打开页面，已在跑就打开页面）
+#   命令行调用   ./局域网扫描服务.command start|stop|restart|open|toggle|status|log|help
 # ============================================
 
 # ⚠️ 本脚本用 macOS 自带的 bash 3.2 跑（#!/bin/bash），它有个坑：
@@ -211,6 +211,36 @@ do_log() {
     say "实时跟踪：tail -f \"${LOG_FILE}\""
 }
 
+# ---------- 切换（一个动作搞定开关）----------
+do_toggle() {
+    if is_up; then
+        do_stop
+    else
+        do_start && do_open
+    fi
+}
+
+# 当前状态下回车应该做什么
+default_action() {
+    if is_up; then printf '打开页面'; else printf '启动服务并打开页面'; fi
+}
+
+usage() {
+    say "局域网设备扫描服务 —— 单文件控制脚本"
+    say ""
+    say "用法： $(basename "$0") [动作]"
+    say ""
+    say "  不带动作   打开菜单（直接回车执行默认动作）"
+    say "  start      启动服务并打开页面"
+    say "  stop       停止服务"
+    say "  restart    重启服务"
+    say "  open       只打开页面（没跑就先启动）"
+    say "  toggle     没跑就启动，在跑就停止"
+    say "  status     查看运行状态"
+    say "  log        查看最近 40 行日志"
+    say "  help       显示本帮助"
+}
+
 # ---------- 菜单 ----------
 show_menu() {
     clear 2>/dev/null || true
@@ -242,9 +272,10 @@ menu_loop() {
     local choice
     while true; do
         show_menu
-        printf '  请输入序号: '
+        printf '  请输入序号（直接回车 = %s）: ' "$(default_action)"
         read -r choice || { say ""; exit 0; }   # 没有输入（比如被管道调用）就直接退出
         case "${choice}" in
+            "")  if is_up; then do_open; else do_start && do_open; fi ;;
             1) do_start && do_open ;;
             2) do_stop ;;
             3) do_stop; do_start && do_open ;;
@@ -266,12 +297,15 @@ case "${1:-}" in
     stop)    do_stop ;;
     restart) do_stop; do_start && do_open ;;
     open)    do_open ;;
+    toggle)  do_toggle ;;
     status)  do_status ;;
     log)     do_log ;;
+    help|-h|--help) usage ;;
     "")      menu_loop ;;
     *)
-        say "用法：$(basename "$0") [start|stop|restart|open|status|log]"
-        say "   不带参数 = 打开菜单"
+        err "没有这个动作：${1}"
+        say ""
+        usage
         exit 2
         ;;
 esac
