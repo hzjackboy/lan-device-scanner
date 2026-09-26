@@ -113,6 +113,35 @@ static/            前端页面（原生 JS，无框架无依赖）
 run.sh             启动脚本
 ```
 
+## 桌面一键脚本（macOS）
+
+`desktop/` 下有三个可直接双击的启动器，复制到桌面即可用：
+
+| 文件 | 作用 |
+| --- | --- |
+| `启动局域网扫描.command` | 双击启动服务并自动打开页面（服务已在跑就只打开页面） |
+| `关闭局域网扫描.command` | 双击停止服务 |
+| `局域网扫描服务.command` | 主脚本：双击打开菜单（启动 / 停止 / 重启 / 打开页面 / 状态 / 日志） |
+
+主脚本也支持命令行调用，装到桌面后可以直接：
+
+```bash
+~/Desktop/局域网扫描服务.command start     # 启动并打开页面
+~/Desktop/局域网扫描服务.command stop      # 停止
+~/Desktop/局域网扫描服务.command restart   # 重启
+~/Desktop/局域网扫描服务.command status    # 看状态（含版本、网段、定时重扫、台账统计）
+~/Desktop/局域网扫描服务.command open      # 只打开页面
+~/Desktop/局域网扫描服务.command log       # 看最近 40 行日志
+```
+
+服务用 `nohup` 挂在后台（日志写 `data/server.log`，进程号写 `data/server.pid`），
+关掉终端窗口也继续跑。项目目录默认写死在脚本顶部的 `PROJECT_DIR`，
+换路径就改它，或者设环境变量 `LAN_SCAN_PROJECT`；从仓库的 `desktop/` 目录直接跑时
+会自动回退到上一级目录。
+
+> 脚本里变量一律写成 `${VAR}` 而不是 `$VAR`：macOS 自带的 bash 3.2 在变量后面
+> 紧跟中文全角字符时，会把该字符的首字节吃进变量名，导致输出乱码。
+
 ## 使用方法
 
 ```bash
