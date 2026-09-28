@@ -127,6 +127,8 @@ data/devices.json  设备台账（含人工编辑内容），自动生成
 static/            前端页面（原生 JS，无框架无依赖）
 tests/             测试脚本 + run.sh
 AGENTS.md          压缩后的项目上下文（DSH 自动加载）
+Dockerfile         容器镜像（alpine + iproute2 + iputils）
+docker-compose.yml compose 编排（host 网络 + data 卷）
 run.sh             启动脚本
 ```
 
@@ -177,6 +179,58 @@ run.sh             启动脚本
 
 > 脚本里变量一律写成 `${VAR}` 而不是 `$VAR`：macOS 自带的 bash 3.2 在变量后面
 > 紧跟中文全角字符时，会把该字符的首字节吃进变量名，导致输出乱码。
+
+## Docker 部署
+
+可以打包成镜像，仓库里已经带了 `Dockerfile` / `docker-compose.yml` / `.dockerignore`。
+
+```bash
+docker build -t lan-device-scanner .
+docker run -d --name lan-scan --network host \
+  -v "$PWD/data:/app/data" \
+  -e TZ=Asia/Shanghai \
+  --restart unless-stopped \
+  lan-device-scanner
+```
+
+或者直接用 compose：
+
+```bash
+docker compose up -d      # 起来
+docker compose logs -f    # 看日志
+docker compose down       # 停掉
+```
+
+### ⚠️ 必须用 host 网络
+
+这个工具的发现能力靠 **ARP（二层广播域）**：读宿主 ARP 表 + 发 UDP 触发 ARP 解析。
+Docker 默认的 bridge 网络里容器被 NAT，`/proc/net/arp` 只有 docker 网段那几个地址，
+**扫不到你的局域网**。所以 `--network host`（compose 里 `network_mode: host`）是硬要求；
+用了 host 网络后不能再写 `ports:` 映射，容器直接占用宿主机 8765 端口。
+
+| 部署位置 | ARP 发现 | 说明 |
+| --- | --- | --- |
+| Linux 主机 / 软路由 / 树莓派 | ✅ | `--network host` 后与直接在宿主机跑等价 |
+| 群晖、威联通等 NAS 的容器套件 | ✅ | 网络选「使用与 Docker Host 相同的网络」/ host |
+| Kubernetes | ⚠️ | 需要 `hostNetwork: true`，且 Pod 所在节点必须在目标局域网内 |
+| 云服务器 VPS | ⚠️ | 只能扫 VPS 自己那一段（宿主 ARP 表），**扫不到你家局域网**；跨网段退化成 ICMP + 端口探测 |
+| Docker Desktop（macOS / Windows） | ❌ | 容器跑在虚拟机里，即使 host 网络也在 VM 的 NAT 后面，ARP 看到的不是你的局域网 |
+
+### 持久化与环境变量
+
+| 路径 / 变量 | 作用 |
+| --- | --- |
+| `/app/data`（挂卷） | 设备台账 `devices.json`、日志 `server.log`、定时重扫配置 `auto.json` |
+| `TZ` | 日志与时间显示时区，默认 `Asia/Shanghai` |
+| `LAN_SCAN_OUI` | 厂商表路径，默认按 `oui.csv` → `data/oui.csv` 顺序找 |
+
+厂商表想持久化（默认不在镜像里，1.5MB）：`docker exec lan-scan python3 update_oui.py --out /app/data/oui.csv`
+
+镜像基于 `python:3.13-alpine` + `iproute2` + `iputils`，约 60MB；内置 `HEALTHCHECK`
+打 `/api/status`，`docker ps` 能看到 healthy 状态。容器里以 root 运行（ICMP 需要
+`NET_RAW`，Docker 默认能力集已包含）——**只在内网暴露**，公网请加反向代理和认证。
+
+> 容器里没有桌面启动脚本（那是给 macOS 用的），但定时重扫等功能照常：调度在服务端进程里。
 
 ## 使用方法
 

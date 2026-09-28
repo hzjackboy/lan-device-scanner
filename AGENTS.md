@@ -25,6 +25,7 @@
 | `static/` | 前端三件套（`index.html` / `style.css` / `app.js`），hash 路由 + SSE |
 | `desktop/` | 桌面启动器（单文件，菜单 + 命令行动作） |
 | `tests/` | node + DOM 桩测试（离线 UI）与联调脚本 |
+| `Dockerfile` / `docker-compose.yml` | 容器化部署（**必须 host 网络**，否则 ARP 扫不到局域网） |
 
 前端 5 个视图：**首页**（在线/离线环形饼图 + 设备方块墙）、**设备扫描**、**历史记录**、
 **设备管理**（台账）、**关于与说明**。加视图只需：`VIEWS` 加一项 + 一个 `<section class="view">` + 一个 `.nav-item`。
@@ -51,7 +52,9 @@
 3. NetBIOS 应答**不回显 question 段**，要按 header 的 `qdcount` 跳过，否则读出 `ROUP` 之类垃圾名。
 4. mDNS 的 SRV 记录解析结果在 `rec["host"]`（不是 `target`），写错会导致 browse 返回 0 条。
 5. 设备类型覆盖与 mDNS 别名要过滤 `(none)`、`WORKGROUP` 这类无效名（`scanner.clean_hostname`）。
-6. **台账信息要在所有出口都贴一遍**：`GET /api/scan/<id>`、**SSE `/events`**、
+6. **容器部署必须 `--network host`**：bridge 网络下 NAT 会挡掉 ARP，`/proc/net/arp`
+   只剩 docker 网段。镜像里装了 iproute2/iputils；代码对 busybox 版 ping 会自动去掉 `-n`。
+7. **台账信息要在所有出口都贴一遍**：`GET /api/scan/<id>`、**SSE `/events`**、
    前端 `applySnapshot` 记录 `scanId`。漏掉任一处，页面上的人工别名就会不同步
    （SSE 漏贴过、编辑后不重取快照也漏过，都已修）。
 

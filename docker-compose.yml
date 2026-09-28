@@ -1,0 +1,24 @@
+# 局域网设备扫描服务
+#
+# 起：docker compose up -d
+# 停：docker compose down
+# 升级：docker compose build && docker compose up -d
+#
+# ⚠️ network_mode: host 是必须的 —— ARP 发现只在本广播域有效。
+#    用了 host 网络后不需要（也不能）再写 ports 映射，容器直接占用宿主机 8765。
+services:
+  lan-scan:
+    build: .
+    image: lan-device-scanner:latest
+    container_name: lan-scan
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      # 设备台账（含真实 MAC/IP）、日志、定时重扫配置都在这里
+      - ./data:/app/data
+    # ICMP 用的 NET_RAW 已包含在 Docker 默认能力集里；
+    # 如果宿主机做了能力收紧，取消下面注释：
+    # cap_add:
+    #   - NET_RAW

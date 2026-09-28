@@ -1,0 +1,13 @@
+# 构建上下文里剔掉不需要的东西（镜像只放运行必需的代码 + 前端）
+.git
+.gitignore
+data/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.DS_Store
+oui.csv
+desktop/
+tests/
+docker-compose.yml
+Dockerfile

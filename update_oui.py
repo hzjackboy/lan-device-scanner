@@ -19,7 +19,16 @@ SOURCES = [
     "https://standards-oui.ieee.org/oui/oui.csv",
     "https://raw.githubusercontent.com/wireshark/wireshark/master/manuf",
 ]
-TARGET = os.path.join(os.path.dirname(os.path.abspath(__file__)), "oui.csv")
+def _default_target() -> str:
+    """默认写到项目目录；容器里项目目录是只读镜像层，
+    用 --out /app/data/oui.csv（或环境变量 LAN_SCAN_OUI）写到挂载卷里。"""
+    env = os.environ.get("LAN_SCAN_OUI")
+    if env:
+        return env
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "oui.csv")
+
+
+TARGET = _default_target()
 
 
 def download(url: str, timeout: float = 30.0) -> bytes:
@@ -30,6 +39,15 @@ def download(url: str, timeout: float = 30.0) -> bytes:
 
 
 def main() -> int:
+    global TARGET
+    argv = sys.argv[1:]
+    if argv and argv[0] == "--out" and len(argv) > 1:
+        TARGET = os.path.abspath(argv[1])
+    elif argv and argv[0] in ("-h", "--help"):
+        print(__doc__)
+        print("用法：python3 update_oui.py [--out 输出路径]")
+        return 0
+    os.makedirs(os.path.dirname(TARGET) or ".", exist_ok=True)
     for url in SOURCES:
         print(f"下载 {url} …")
         try:

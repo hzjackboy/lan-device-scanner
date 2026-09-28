@@ -276,19 +276,40 @@ def arp_prime(ips: list[str], workers: int = 64) -> None:
         list(pool.map(probe, ips))
 
 
+# 有些精简镜像里是 busybox 的 ping，不认 -n（不做 DNS 反解）。
+# 首次遇到用法错误就永久降级，避免每台设备都失败一次。
+PING_NO_DNS = True
+_PING_FALLBACK_LOCK = threading.Lock()
+
+
+def _ping_usage_error(stderr: str) -> bool:
+    text = (stderr or "").lower()
+    return ("invalid option" in text or "unrecognized option" in text
+            or "usage:" in text or "unknown option" in text)
+
+
 def ping_once(ip: str, timeout_ms: int = 800) -> tuple[bool, float | None]:
     """返回 (是否在线, 延迟毫秒)。"""
+    global PING_NO_DNS
     if not HAS_PING:
         return False, None
     if IS_MACOS:
         cmd = ["ping", "-c", "1", "-n", "-W", str(timeout_ms), "-t", "2", ip]
     else:
-        cmd = ["ping", "-c", "1", "-n", "-W", str(max(1, int(round(timeout_ms / 1000)))), ip]
+        cmd = ["ping", "-c", "1"]
+        if PING_NO_DNS:
+            cmd.append("-n")
+        cmd += ["-W", str(max(1, int(round(timeout_ms / 1000)))), ip]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,
                               timeout=timeout_ms / 1000 + 2.5)
     except Exception:
         return False, None
+    if (proc.returncode != 0 and not IS_MACOS and PING_NO_DNS
+            and _ping_usage_error(proc.stderr)):
+        with _PING_FALLBACK_LOCK:
+            PING_NO_DNS = False
+        return ping_once(ip, timeout_ms)     # 去掉 -n 再试一次（只会重试一次）
     if proc.returncode != 0:
         return False, None
     m = re.search(r"time[=<]([\d.]+)\s*ms", proc.stdout)
@@ -637,6 +658,8 @@ class ScanJob:
                         dev.only_arp = False
                         dev.merge_source("icmp")
             self.log(f"ping 通 {len([d for d in self.devices.values() if 'icmp' in d.sources])} 台")
+            if not PING_NO_DNS:
+                self.log("本机 ping 不支持 -n 参数，已自动降级（不影响结果）", "warn")
         elif not HAS_PING:
             self.log("系统里没有 ping 命令，跳过 ICMP 扫描", "warn")
 

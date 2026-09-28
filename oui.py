@@ -929,24 +929,39 @@ def normalize(mac: str) -> str:
     return hex_only[:12].upper()
 
 
+def oui_csv_candidates() -> list[str]:
+    """oui.csv 的查找顺序：环境变量 → 项目目录 → data/ 目录。
+
+    容器部署时项目目录是只读的镜像层，把表放进被挂载的 data/ 才能持久化。
+    """
+    base = os.path.dirname(os.path.abspath(__file__))
+    paths = []
+    env = os.environ.get("LAN_SCAN_OUI")
+    if env:
+        paths.append(env)
+    paths.append(os.path.join(base, "oui.csv"))
+    paths.append(os.path.join(base, "data", "oui.csv"))
+    return paths
+
+
 def _load_external_table() -> dict[str, str]:
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "oui.csv")
     table: dict[str, str] = {}
-    if not os.path.isfile(path):
-        return table
-    try:
-        with open(path, newline="", encoding="utf-8", errors="replace") as fh:
-            reader = csv.reader(fh)
-            next(reader, None)
-            for row in reader:
-                if len(row) < 3:
-                    continue
-                assignment = (row[1] or "").strip().upper()
-                org = (row[2] or "").strip()
-                if len(assignment) >= 6 and org:
-                    table[assignment[:6]] = org
-    except Exception:
-        return {}
+    for path in oui_csv_candidates():
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, newline="", encoding="utf-8", errors="replace") as fh:
+                reader = csv.reader(fh)
+                next(reader, None)
+                for row in reader:
+                    if len(row) < 3:
+                        continue
+                    assignment = (row[1] or "").strip().upper()
+                    org = (row[2] or "").strip()
+                    if len(assignment) >= 6 and org and assignment[:6] not in table:
+                        table[assignment[:6]] = org
+        except Exception:
+            continue
     return table
 
 
