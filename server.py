@@ -370,7 +370,10 @@ class Handler(BaseHTTPRequestHandler):
                 version = job.version
                 if version != last_version:
                     last_version = version
-                    payload = json.dumps(job.snapshot(), ensure_ascii=False)
+                    # 和 GET /api/scan/<id> 一样贴上台账信息（别名/分类/忽略），
+                    # 否则扫描过程中页面上的人工命名会消失
+                    payload = json.dumps(REGISTRY.apply_to_snapshot(job.snapshot()),
+                                         ensure_ascii=False)
                     self.wfile.write(f"event: scan\ndata: {payload}\n\n".encode("utf-8"))
                     self.wfile.flush()
                     last_beat = time.time()

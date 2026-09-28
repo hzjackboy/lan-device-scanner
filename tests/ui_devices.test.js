@@ -56,7 +56,38 @@ const ctx = { document, console, setTimeout, clearTimeout, setInterval, clearInt
     }
     if (u.startsWith('/api/devices/')) {
       const key = decodeURIComponent(u.split('/api/devices/')[1]);
+      if ((opts && opts.method) === 'POST') {
+        const patch = JSON.parse(opts.body);
+        const rec = RECORDS.find(r=>r.key===key);
+        if (rec) {
+          if (patch.name !== undefined) { rec.custom_name = patch.name; rec.name = patch.name || rec.hostname || rec.vendor; }
+          if (patch.category !== undefined) rec.category = patch.category;
+          if (patch.location !== undefined) rec.location = patch.location;
+          if (patch.ignored !== undefined) rec.ignored = patch.ignored;
+          if (patch.kind !== undefined) rec.kind = patch.kind || rec.auto_kind;
+        }
+        return okJson({ ok:true, device: rec });
+      }
       return okJson({ ok:true, device: RECORDS.find(r=>r.key===key) });
+    }
+    // 模拟服务端 apply_to_snapshot：把台账里的人工信息贴到扫描结果上
+    if (u.startsWith('/api/scan/')) {
+      return okJson({ ok:true, scan: {
+        id: u.split('/api/scan/')[1], subnet:'10.0.0.0/24', state:'done', phase:'完成', error:'',
+        progress:{done:254,total:254,percent:100}, started_at:1700000000, finished_at:1700000010,
+        duration:9, total_hosts:254, options:{}, version:9, logs:[],
+        stats:{ total:RECORDS.length, online:RECORDS.filter(r=>r.online).length, arp_only:0,
+                with_mac:RECORDS.length, named:RECORDS.length, kinds:{}, vendors:{} },
+        devices: RECORDS.map(r => ({
+          ip:r.ip, mac:r.mac, vendor:r.vendor, hostname:r.hostname,
+          alias:r.custom_name || '', category:r.category,
+          kind:(r.kind && r.kind !== r.auto_kind) ? r.kind : r.auto_kind,
+          starred:!!r.starred, ignored:!!r.ignored, managed:true,
+          ports:r.ports||[], services:r.services||[], rtt_ms:1, iface:r.iface||'en0',
+          online:r.online, confirmed:true, only_arp:false, sources:['arp'], note:'',
+          last_seen:r.last_seen, extra:{},
+        })),
+      }});
     }
     return okJson({ ok:true, devices:RECORDS, stats:stats(), categories:CATS });
   },
@@ -149,6 +180,31 @@ const checks = []; const check = (n, ok) => checks.push([n, ok]);
   await ctx.deleteDeviceRecord();
   check('弹窗删除走 bulk-delete', bulkCalls.length===1 && bulkCalls[0].keys[0]==='K1');
   check('弹窗删除后关闭弹窗', els['edit-dialog'].opened===false);
+
+  // ---- 回归：改名后首页方块墙要跟着变（曾经不同步的 bug）----
+  RECORDS = [
+    { key:'AA:BB:CC:00:00:01', mac:'AA:BB:CC:00:00:01', ip:'10.0.0.1', ips:['10.0.0.1'], vendor:'iKuai', hostname:'gateway',
+      name:'主路由', custom_name:'主路由', auto_kind:'路由器 / 网关', kind:'路由器 / 网关', category:'路由器 / 网络',
+      location:'', tags:[], note:'', starred:false, ignored:false, edited:true, ports:[80], services:[],
+      iface:'en0', first_seen:1, last_seen:Date.now()/1000, seen_count:1, online:true, offline_since:null },
+  ];
+  await ctx.loadDevices();
+  const snap1 = await (await ctx.fetch('/api/scan/scan-1')).json();
+  ctx.applySnapshot(snap1.scan);
+  check('首页先显示旧别名', els['home-grid'].innerHTML.includes('主路由'));
+  check('applySnapshot 记录了 scanId', run('state.scanId') === 'scan-1');
+
+  ctx.openDeviceEditor(RECORDS[0]);
+  els['edit-name'].value = '客厅主路由';
+  await ctx.saveDeviceEdit();
+  check('首页方块墙同步显示新别名', els['home-grid'].innerHTML.includes('客厅主路由'));
+  check('首页不再显示旧别名', !els['home-grid'].innerHTML.includes('>主路由<'));
+  check('结果表也同步了', els['results-body'].innerHTML.includes('客厅主路由'));
+
+  // 忽略开关也要同步到首页（被忽略的设备不上方块墙）
+  RECORDS[0].ignored = true;
+  await ctx.refreshManaged();
+  check('标记忽略后首页不再显示该设备', !els['home-grid'].innerHTML.includes('客厅主路由'));
 
   let failed = 0;
   for (const [n, ok] of checks) { console.log((ok ? '✅' : '❌') + ' ' + n); if (!ok) failed++; }

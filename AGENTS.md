@@ -51,6 +51,9 @@
 3. NetBIOS 应答**不回显 question 段**，要按 header 的 `qdcount` 跳过，否则读出 `ROUP` 之类垃圾名。
 4. mDNS 的 SRV 记录解析结果在 `rec["host"]`（不是 `target`），写错会导致 browse 返回 0 条。
 5. 设备类型覆盖与 mDNS 别名要过滤 `(none)`、`WORKGROUP` 这类无效名（`scanner.clean_hostname`）。
+6. **台账信息要在所有出口都贴一遍**：`GET /api/scan/<id>`、**SSE `/events`**、
+   前端 `applySnapshot` 记录 `scanId`。漏掉任一处，页面上的人工别名就会不同步
+   （SSE 漏贴过、编辑后不重取快照也漏过，都已修）。
 
 ## API
 

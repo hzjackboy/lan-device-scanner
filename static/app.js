@@ -730,6 +730,9 @@ function startTicker() {
 
 /* ------------------------- 渲染 ------------------------- */
 function applySnapshot(snap) {
+  // 记住当前展示的是哪一次扫描：导出、编辑后同步别名都靠它。
+  // （从首页自动载入或在历史页载入记录时也要跟着变，否则会指向上一份结果）
+  if (snap && snap.id) state.scanId = snap.id;
   state.snapshot = snap;
   const running = !['done', 'cancelled', 'error'].includes(snap.state);
 
@@ -1381,6 +1384,23 @@ async function refreshManaged() {
     const data = await (await fetch('/api/devices')).json();
     applyDevices(data);
   } catch (_) { /* 忽略 */ }
+  await refreshSnapshot();
+}
+
+/* 台账改过之后，当前这份扫描结果里贴的别名/分类也是旧的，
+   重新取一次快照，首页方块墙、结果表、详情弹窗才会跟着变。 */
+async function refreshSnapshot() {
+  if (!state.scanId) return false;
+  try {
+    const res = await fetch('/api/scan/' + state.scanId);
+    if (!res.ok) return false;
+    const snap = (await res.json()).scan;
+    if (!snap) return false;
+    applySnapshot(snap);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 /* 扫描结束后台账会变，顺手刷新一下角标（正在看设备管理页就整页刷新） */
