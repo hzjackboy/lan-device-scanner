@@ -100,6 +100,18 @@ mDNS 服务 → 厂商 → 弱端口兜底。所以 NAS 不会被 554 端口认�
 `<section class="view" id="view-xxx" hidden>`、再加一个 `.nav-item[data-view=xxx]`
 即可，hash 路由和折叠逻辑都是现成的。
 
+## 开发 / 接手这个项目
+
+- **`AGENTS.md`** —— 压缩后的项目上下文（架构、关键设计、已知坑、API 一览）。
+  用 DSH 打开这个目录时会被自动加载，新会话不用重新摸索。
+- **`./tests/run.sh`** —— 跑全部测试：5 套前端离线测试（node + DOM 桩，直接跑
+  `static/app.js` 的真实渲染逻辑）+ 3 套联调脚本（服务在跑时自动附带）。当前 107 项用例。
+
+```bash
+./tests/run.sh          # 全量
+node tests/ui_devices.test.js   # 单跑某一套
+```
+
 ## 目录结构
 
 ```
@@ -113,6 +125,8 @@ oui.csv            厂商表（4 万条，update_oui.py 下载的）
 data/auto.json     定时重扫的配置（开关 / 间隔 / 网段 / 上次时间），自动生成
 data/devices.json  设备台账（含人工编辑内容），自动生成
 static/            前端页面（原生 JS，无框架无依赖）
+tests/             测试脚本 + run.sh
+AGENTS.md          压缩后的项目上下文（DSH 自动加载）
 run.sh             启动脚本
 ```
 
