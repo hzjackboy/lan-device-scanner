@@ -16,6 +16,7 @@
     GET    /api/devices                   设备台账（含已掉线设备）
     POST   /api/devices/<key>             编辑台账里的设备（别名/分类/位置/标签/备注/类型）
     DELETE /api/devices/<key>             从台账删除
+    POST   /api/devices/bulk-delete       批量删除：{"keys":[...]} 或 {"scope":"offline|ignored|all"}
     GET    /api/devices/export            导出台账 csv|json
     GET    /api/history                   最近扫描记录
 """
@@ -269,6 +270,19 @@ class Handler(BaseHTTPRequestHandler):
                 self._error(SCHEDULER.snapshot().get("last_error") or "无法启动扫描", 500)
                 return
             self._json({"ok": True, "scan_id": job.id, "subnet": job.subnet}, 201)
+            return
+        if parsed.path == "/api/devices/bulk-delete":
+            payload = self._read_json()
+            keys = payload.get("keys")
+            scope = (payload.get("scope") or "").strip().lower()
+            if isinstance(keys, list) and keys:
+                deleted = REGISTRY.delete_many(keys)
+            elif scope in ("offline", "ignored", "all"):
+                deleted = REGISTRY.delete_scope(scope)
+            else:
+                self._error("需要提供 keys 数组，或 scope=offline|ignored|all", 400)
+                return
+            self._json({"ok": True, "deleted": deleted, "stats": REGISTRY.stats()})
             return
         if parsed.path.startswith("/api/devices/"):
             key = urllib.parse.unquote(parsed.path[len("/api/devices/"):].strip("/"))

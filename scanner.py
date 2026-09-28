@@ -1455,6 +1455,36 @@ class DeviceRegistry:
         self._save()
         return True
 
+    def delete_many(self, keys) -> int:
+        """批量删除，返回真正删掉的条数。"""
+        count = 0
+        with self._lock:
+            for key in keys or []:
+                key = str(key)
+                if self.devices.pop(key, None) is not None:
+                    count += 1
+                elif self.devices.pop(key.upper(), None) is not None:
+                    count += 1
+            if count:
+                self.updated_at = time.time()
+        if count:
+            self._save()
+        return count
+
+    def delete_scope(self, scope: str) -> int:
+        """按范围删除：offline=已掉线，ignored=已忽略，all=整本台账。"""
+        with self._lock:
+            if scope == "all":
+                targets = list(self.devices)
+            elif scope == "offline":
+                targets = [k for k, r in self.devices.items() if not r.get("online")]
+            elif scope == "ignored":
+                targets = [k for k, r in self.devices.items()
+                           if (r.get("custom") or {}).get("ignored")]
+            else:
+                targets = []
+        return self.delete_many(targets)
+
     def apply_to_snapshot(self, snapshot: dict) -> dict:
         """把台账里的人工信息（别名/分类/关注）贴到扫描结果上，页面直接用。"""
         with self._lock:

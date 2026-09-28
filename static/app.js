@@ -56,6 +56,7 @@ const state = {
   devCategory: 'all',
   devGroup: 'category',
   devSort: 'ip',
+  devSelected: new Set(),
 };
 
 /* 侧边栏导航：加新页面就在 VIEWS 里加一项 + 一个 section.view 即可 */
@@ -487,6 +488,18 @@ function bindEvents() {
     window.location = '/api/devices/export?format=json';
   });
   $('dev-body').addEventListener('click', onDeviceRowClick);
+  $('dev-check-all').addEventListener('change', (e) => {
+    const visible = sortManaged(filteredManaged());
+    if (e.target.checked) visible.forEach((d) => state.devSelected.add(d.key));
+    else visible.forEach((d) => state.devSelected.delete(d.key));
+    renderDevices();
+  });
+  $('dev-delete-selected').addEventListener('click', () => {
+    const keys = [...state.devSelected];
+    if (!keys.length) return;
+    deleteDevices(keys);
+  });
+  $('dev-delete-offline').addEventListener('click', deleteOfflineDevices);
 
   $('edit-close').addEventListener('click', () => $('edit-dialog').close());
   $('edit-save').addEventListener('click', saveDeviceEdit);
@@ -1103,6 +1116,9 @@ async function loadDevices() {
 
 function applyDevices(data) {
   state.managed = data.devices || [];
+  // 已删除的设备要从选中集合里清掉
+  const alive = new Set(state.managed.map((d) => d.key));
+  [...state.devSelected].forEach((k) => { if (!alive.has(k)) state.devSelected.delete(k); });
   state.managedStats = data.stats || null;
   state.categories = data.categories || [];
   $('nav-devices-badge').textContent = state.managed.length;
@@ -1178,7 +1194,12 @@ function deviceRow(dev) {
   const kind = dev.kind && dev.kind !== '未知设备'
     ? esc(dev.kind) + (dev.kind !== dev.auto_kind && dev.auto_kind ? '<div class="host-sub">自动识别为 ' + esc(dev.auto_kind) + '</div>' : '')
     : '<span class="dim">未知设备</span>';
-  return `<tr class="dev-row${offline ? ' offline' : ''}${dev.ignored ? ' ignored' : ''}" data-key="${esc(dev.key)}">
+  const picked = state.devSelected.has(dev.key);
+  return `<tr class="dev-row${offline ? ' offline' : ''}${dev.ignored ? ' ignored' : ''}${picked ? ' picked' : ''}" data-key="${esc(dev.key)}">
+    <td class="check-cell">
+      <input type="checkbox" class="row-check" data-key="${esc(dev.key)}"${picked ? ' checked' : ''}
+        title="勾选后可批量删除">
+    </td>
     <td class="star-cell">
       <button class="star-btn${dev.starred ? ' on' : ''}" data-action="star" data-key="${esc(dev.key)}"
         title="${dev.starred ? '取消关注' : '标记为关注'}">${dev.starred ? '★' : '☆'}</button>
@@ -1203,6 +1224,8 @@ function deviceRow(dev) {
       <div class="history-actions">
         <button class="mini" data-action="edit" data-key="${esc(dev.key)}">编辑</button>
         <button class="mini" data-action="detail" data-key="${esc(dev.key)}">详情</button>
+        <button class="mini danger" data-action="delete" data-key="${esc(dev.key)}"
+          title="从台账删除这条记录">删除</button>
       </div>
     </td>
   </tr>`;
@@ -1231,13 +1254,26 @@ function renderDevices() {
     [...buckets.entries()]
       .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'zh-Hans-CN'))
       .forEach(([name, items]) => {
-        html += `<tr class="group-row"><td colspan="11">${esc(name)}<span class="count"> · ${items.length} 台</span></td></tr>`;
+        html += `<tr class="group-row"><td colspan="12">${esc(name)}<span class="count"> · ${items.length} 台</span></td></tr>`;
         html += items.map(deviceRow).join('');
       });
   } else {
     html = list.map(deviceRow).join('');
   }
   $('dev-body').innerHTML = html;
+  syncSelectionUi(list);
+}
+
+/* 同步「全选」框和「删除选中」按钮的状态 */
+function syncSelectionUi(visibleList) {
+  const visible = visibleList || sortManaged(filteredManaged());
+  const picked = visible.filter((d) => state.devSelected.has(d.key)).length;
+  const all = $('dev-check-all');
+  all.checked = visible.length > 0 && picked === visible.length;
+  all.indeterminate = picked > 0 && picked < visible.length;
+  const btn = $('dev-delete-selected');
+  btn.disabled = state.devSelected.size === 0;
+  btn.textContent = state.devSelected.size ? `删除选中 (${state.devSelected.size})` : '删除选中';
 }
 
 function findManaged(key) {
@@ -1245,19 +1281,83 @@ function findManaged(key) {
 }
 
 function onDeviceRowClick(e) {
-  const btn = e.target.closest('button[data-action]');
   const row = e.target.closest('tr.dev-row');
   if (!row) return;
-  const key = (btn && btn.dataset.key) || row.dataset.key;
+  const key = row.dataset.key;
   const dev = findManaged(key);
+
+  // 勾选框：只切换选中，不打开编辑
+  const box = e.target.closest('input.row-check');
+  if (box) {
+    if (box.checked) state.devSelected.add(key);
+    else state.devSelected.delete(key);
+    row.classList.toggle('picked', box.checked);
+    syncSelectionUi();
+    return;
+  }
   if (!dev) return;
+
+  const btn = e.target.closest('button[data-action]');
   const action = btn ? btn.dataset.action : 'edit';
-  if (action === 'star') {
-    toggleStar(dev);
-  } else if (action === 'detail') {
-    showDetail(dev);
-  } else {
-    openDeviceEditor(dev);
+  if (action === 'star') toggleStar(dev);
+  else if (action === 'detail') showDetail(dev);
+  else if (action === 'delete') deleteDevices([dev.key], dev.name);
+  else openDeviceEditor(dev);
+}
+
+/* 删除：单条走这一个入口，批量也走它 */
+async function deleteDevices(keys, label) {
+  const list = (keys || []).filter(Boolean);
+  if (!list.length) return;
+  const name = label || (list.length === 1 ? list[0] : `${list.length} 台设备`);
+  const extra = list.length > 1 ? `\n共 ${list.length} 台。` : '';
+  if (!window.confirm(`从台账中删除「${name}」？${extra}\n\n注意：如果它还在线，下次扫描会作为新设备重新出现（人工填的别名/分类等会丢）。`)) {
+    return 0;
+  }
+  try {
+    const res = await fetch('/api/devices/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: list }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    list.forEach((k) => state.devSelected.delete(k));
+    if (data.stats) renderChart(data.stats);
+    await refreshManaged();
+    toast(`已删除 ${data.deleted} 条设备记录`);
+    return data.deleted;
+  } catch (err) {
+    toast('删除失败：' + err.message);
+    return 0;
+  }
+}
+
+/* 一键清除全部已掉线设备 */
+async function deleteOfflineDevices() {
+  const stats = state.managedStats || {};
+  const n = stats.offline || 0;
+  if (!n) {
+    toast('没有已掉线的设备');
+    return;
+  }
+  if (!window.confirm(`清除 ${n} 台「已掉线」设备的记录？\n\n它们已经不在网上了，删除只是清理台账；以后重新上线会作为新设备出现。`)) {
+    return;
+  }
+  try {
+    const res = await fetch('/api/devices/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope: 'offline' }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    state.devSelected.clear();
+    if (data.stats) renderChart(data.stats);
+    await refreshManaged();
+    toast(`已清除 ${data.deleted} 台离线设备`);
+  } catch (err) {
+    toast('清除失败：' + err.message);
   }
 }
 
@@ -1358,16 +1458,8 @@ async function deleteDeviceRecord() {
   const key = state.editingKey;
   if (!key) return;
   const dev = findManaged(key);
-  if (!window.confirm(`从台账中删除「${dev ? dev.name : key}」？\n（下次扫到它会重新出现）`)) return;
-  try {
-    const res = await fetch('/api/devices/' + encodeURIComponent(key), { method: 'DELETE' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    $('edit-dialog').close();
-    await refreshManaged();
-    toast('已删除记录');
-  } catch (err) {
-    toast('删除失败：' + err.message);
-  }
+  const deleted = await deleteDevices([key], dev ? dev.name : key);
+  if (deleted) $('edit-dialog').close();
 }
 
 /* ------------------------- 关于页 ------------------------- */async function loadAbout() {

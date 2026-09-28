@@ -348,6 +348,8 @@
             </select>
             <button id="dev-export-csv" class="ghost">导出 CSV</button>
             <button id="dev-export-json" class="ghost">导出 JSON</button>
+            <button id="dev-delete-selected" class="ghost danger" disabled>删除选中</button>
+            <button id="dev-delete-offline" class="ghost danger">清除离线</button>
             <button id="dev-refresh" class="ghost">刷新</button>
           </div>
         </section>
@@ -361,6 +363,7 @@
             <table id="dev-table">
               <thead>
                 <tr>
+                  <th class="check-col"><input type="checkbox" id="dev-check-all" title="全选 / 取消全选（只作用于当前筛选出的设备）"></th>
                   <th class="star-col">★</th>
                   <th>名称</th>
                   <th>分类</th>
