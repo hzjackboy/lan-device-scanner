@@ -244,14 +244,36 @@ docker compose down       # 停掉
    没必要 build 两次、推两个临时架构标签、再 `docker manifest create` 拼起来。
    实测 `--platform linux/amd64,linux/arm64 --push` 一条命令就够了。
 
-登录时也要带代理，密码填 **Access Token**（<https://hub.docker.com/settings/security> 生成），
-不是登录密码：
+登录时也要带代理，注意**写成一行**（分行粘贴会丢换行，zsh 会报
+`export: not valid in this context: -u`）。密码填 **Access Token**
+（<https://hub.docker.com/settings/security> 生成，权限选 Read & Write），不是登录密码：
 
 ```bash
-export HTTPS_PROXY=http://127.0.0.1:7897
-export HTTP_PROXY="${HTTPS_PROXY}"
-docker login -u hzjackboy
+HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 docker login -u hzjackboy
 ```
+
+### 🔐 别让令牌明文躺在磁盘上
+
+`docker login` 默认会把凭据以 **base64（不是加密）** 写进 `~/.docker/config.json`，
+登录时终端也会警告 `Your credentials are stored unencrypted`。base64 等于明文，
+任何能读你用户目录的进程都能拿走这个能推送镜像的令牌。装个 credential helper 交给钥匙串：
+
+```bash
+brew install docker-credential-helper
+
+# 把 ~/.docker/config.json 换成用钥匙串存（手动加这一行，并删掉 "auths" 段）
+#   "credsStore": "osxkeychain"
+
+# 已有登录态可以这样迁移，不用重新输令牌：
+printf 'https://index.docker.io/v1/' | docker-credential-osxkeychain get   # 确认能读到
+```
+
+迁移完 `~/.docker/config.json` 里只剩 `"credsStore": "osxkeychain"`，
+令牌进了 macOS 钥匙串（钥匙串访问 → 搜 `docker`）。
+
+> 注意：`docker info` 的 `Username:` 那一行**只在明文 `auths` 存在时才显示**，
+> 用了钥匙串之后它就不显示了，别拿它判断有没有登录。
+> `docker-push.sh` 因此改成先问 `docker-credential-<store>`，再退回看 `auths`。
 
 ### ⚠️ 必须用 host 网络
 

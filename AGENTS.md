@@ -76,6 +76,12 @@
    ④ 装了 buildx 插件后 `docker build` 会走 BuildKit 并写 `~/.docker/buildx`，
    受限环境会报 `mkdir ...: operation not permitted` —— `tests/docker_smoke.sh` 和
    `docker-push.sh` 都已 `export BUILDX_CONFIG=${PWD}/.buildx`（该目录已 gitignore）。
+   ⑤ **登录凭据**：本机已配 `"credsStore": "osxkeychain"`（`brew install docker-credential-helper`），
+   令牌在 macOS 钥匙串里，`~/.docker/config.json` 里没有明文。**关键坑**：`docker info` 的
+   `Username:` 行只在明文 `auths` 存在时才出现，用了钥匙串就不显示 —— 别用它判断登录状态
+   （`docker-push.sh` 已改成先问 `docker-credential-<store>`，再退回看 `auths`）。
+   另外 `docker login` 一行命令要写成 `HTTPS_PROXY=... docker login -u X`，
+   **分行粘贴会丢换行**，zsh 报 `export: not valid in this context: -u`。
 
 ## API
 

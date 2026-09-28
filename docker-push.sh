@@ -76,17 +76,49 @@ else
 fi
 
 # ── 3. 登录状态 ────────────────────────────────────────────────
-if docker info 2>/dev/null | grep -qi "^ *Username:"; then
-  ok "已登录：$(docker info 2>/dev/null | grep -i '^ *Username:' | head -1 | sed 's/.*: *//')"
-elif grep -q "index.docker.io\|https://index.docker.io" "${HOME}/.docker/config.json" 2>/dev/null; then
+# 凭据可能在三处，要挨个问：
+#   ① credsStore（我们推荐的 macOS 钥匙串）—— 问 docker-credential-<store>
+#   ② config.json 的 auths（老式的 base64 明文）
+#   ③ docker info 的 Username 行（只在 ② 存在时才会出现）
+# 只查 ②③ 会漏掉钥匙串的情况，导致明明登录了却报「还没登录」。
+DOCKER_SERVER="https://index.docker.io/v1/"
+
+creds_store() {  # 打印 config.json 里配的 credsStore，没有则空
+  python3 -c 'import json,os
+try:
+    print(json.load(open(os.path.expanduser("~/.docker/config.json"))).get("credsStore",""))
+except Exception:
+    pass' 2>/dev/null
+}
+
+STORE="$(creds_store)"
+LOGGED_USER=""
+if [ -n "${STORE}" ] && command -v "docker-credential-${STORE}" >/dev/null 2>&1; then
+  LOGGED_USER="$(printf '%s' "${DOCKER_SERVER}" | "docker-credential-${STORE}" get 2>/dev/null \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin).get("Username",""))' 2>/dev/null)"
+fi
+if [ -z "${LOGGED_USER}" ]; then
+  LOGGED_USER="$(docker info 2>/dev/null | grep -i '^ *Username:' | head -1 | sed 's/.*: *//')"
+fi
+
+if [ -n "${LOGGED_USER}" ]; then
+  if [ -n "${STORE}" ]; then
+    ok "已登录：${LOGGED_USER}（凭据在 ${STORE} 钥匙串里，config.json 里没有明文）"
+  else
+    ok "已登录：${LOGGED_USER}"
+  fi
+elif grep -q "index.docker.io" "${HOME}/.docker/config.json" 2>/dev/null; then
   ok "~/.docker/config.json 里有 Docker Hub 凭据"
 else
-  die "还没 docker login。注意登录也要带代理：
+  die "还没 docker login。注意登录也要带代理（写成一行，别分行粘贴）：
 
-    export HTTPS_PROXY=${HTTPS_PROXY:-http://127.0.0.1:7897}
-    export HTTP_PROXY=\${HTTPS_PROXY}
-    docker login -u ${USER_NAME}
-    # 密码处填 Access Token（https://hub.docker.com/settings/security 生成），不是登录密码"
+    HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 docker login -u ${USER_NAME}
+
+    密码处填 Access Token（https://hub.docker.com/settings/security 生成），不是登录密码。
+    想避免令牌明文落盘，装个 credential helper：
+
+    brew install docker-credential-helper
+    # 然后在 ~/.docker/config.json 里加 \"credsStore\": \"osxkeychain\""
 fi
 
 # ── 4. 构建并推送 ──────────────────────────────────────────────

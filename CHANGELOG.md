@@ -27,6 +27,14 @@
   另有 `tests/docker_smoke.sh` 容器冒烟测试 27 项。
 - **`AGENTS.md`**：压缩后的项目上下文，新会话自动加载。
 
+### 安全
+
+- **Docker Hub 令牌不再明文落盘**：`docker login` 默认把凭据以 base64（等于明文）
+  写进 `~/.docker/config.json`，任何能读用户目录的进程都能拿到这个可推送镜像的令牌。
+  现在用 `docker-credential-osxkeychain` 存进 macOS 钥匙串，配置文件里只剩
+  `"credsStore": "osxkeychain"`。README 补了迁移步骤与那个反直觉的坑：
+  用了钥匙串后 `docker info` 的 `Username:` 行会消失，不能再用它判断登录状态。
+
 ### 修复
 
 - **设备管理改名后首页不同步**：台账别名此前只在 `GET /api/scan/<id>` 贴上，
