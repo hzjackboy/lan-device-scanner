@@ -54,6 +54,10 @@
 5. 设备类型覆盖与 mDNS 别名要过滤 `(none)`、`WORKGROUP` 这类无效名（`scanner.clean_hostname`）。
 6. **容器部署必须 `--network host`**：bridge 网络下 NAT 会挡掉 ARP，`/proc/net/arp`
    只剩 docker 网段。镜像里装了 iproute2/iputils；代码对 busybox 版 ping 会自动去掉 `-n`。
+   macOS 上（含 colima）host 网络也只是虚拟机内网，扫不到真实局域网；容器冒烟测试见
+   `tests/docker_smoke.sh`（27 项）。colima 四个坑：VM 镜像从 GitHub 下（慢，用 `--disk-image`）、
+   VM 里 DNS 软链坏掉（写死 nameserver）、Docker Hub 要配 daemon 代理（宿主机 192.168.5.2:7897）、
+   挂载只覆盖 `$HOME`。另外别用 `colima ssh -- curl 127.0.0.1:8765` 探测容器——会打到宿主服务。
 7. **台账信息要在所有出口都贴一遍**：`GET /api/scan/<id>`、**SSE `/events`**、
    前端 `applySnapshot` 记录 `scanId`。漏掉任一处，页面上的人工别名就会不同步
    （SSE 漏贴过、编辑后不重取快照也漏过，都已修）。

@@ -110,6 +110,7 @@ mDNS 服务 → 厂商 → 弱端口兜底。所以 NAS 不会被 554 端口认�
 ```bash
 ./tests/run.sh          # 全量
 node tests/ui_devices.test.js   # 单跑某一套
+./tests/docker_smoke.sh # 容器冒烟测试（构建镜像 + 两种网络场景，27 项）
 ```
 
 ## 目录结构
@@ -214,7 +215,41 @@ Docker 默认的 bridge 网络里容器被 NAT，`/proc/net/arp` 只有 docker �
 | 群晖、威联通等 NAS 的容器套件 | ✅ | 网络选「使用与 Docker Host 相同的网络」/ host |
 | Kubernetes | ⚠️ | 需要 `hostNetwork: true`，且 Pod 所在节点必须在目标局域网内 |
 | 云服务器 VPS | ⚠️ | 只能扫 VPS 自己那一段（宿主 ARP 表），**扫不到你家局域网**；跨网段退化成 ICMP + 端口探测 |
-| Docker Desktop（macOS / Windows） | ❌ | 容器跑在虚拟机里，即使 host 网络也在 VM 的 NAT 后面，ARP 看到的不是你的局域网 |
+| Docker Desktop（macOS / Windows） | ❌ | 容器跑在虚拟机里，即使 host 网络也在 VM 的 NAT 后面 |
+| colima（macOS，本仓库实测） | ❌ | 同上：实测容器 host 网络下只看到 colima 内网 `192.168.5.0/24`，看不到宿主的 `10.0.0.0/24` |
+
+> macOS 实测记录（colima 0.10.3 + docker 29.5.2）：容器本身工作完全正常
+> ——页面、SSE、扫描引擎、健康检查、台账落盘都通过；只是 **ARP 只能看到虚拟机所在的网段**。
+> 想在 macOS 上扫真实局域网，还是得在宿主机直接跑（见开头「桌面一键脚本」）。
+
+### macOS + colima 上的四个坑（实测踩过）
+
+国内用 colima 起 docker 比 Docker Desktop 省事，但这几处要手动处理：
+
+1. **VM 镜像从 GitHub 下载**（`github.com/abiosoft/colima-core/releases`），国内直连约
+   88 KB/s（332MB 要一小时），表现为 `colima start` 卡在 `downloading disk image` 且
+   一个字节都不落盘。用代理手动下好再让 colima 加载：
+   ```bash
+   curl -L -x http://127.0.0.1:7897 -o ~/.colima/disk-images/ubuntu.raw.gz \
+     https://github.com/abiosoft/colima-core/releases/download/v0.10.4/ubuntu-24.04-minimal-cloudimg-arm64-docker.raw.gz
+   colima start --disk-image ~/.colima/disk-images/ubuntu.raw.gz
+   ```
+   （实测走代理 25 MB/s，12 秒下完。）
+2. **虚拟机里没有 DNS**：`/etc/resolv.conf` 是指向 `systemd-resolve` 存根的软链，而存根不存在，
+   于是 `docker pull` 报 `lookup registry-1.docker.io on [::1]:53: connection refused`。
+   修复：`colima ssh -- sudo sh -c 'rm -f /etc/resolv.conf; printf "nameserver 223.5.5.5\n" > /etc/resolv.conf'`
+3. **Docker Hub 直连不通**：让 VM 里的 docker daemon 走宿主机代理（colima 里宿主机是
+   `192.168.5.2`，ClashX 需允许局域网连接）：
+   ```bash
+   colima ssh -- sudo sh -c 'mkdir -p /etc/systemd/system/docker.service.d && printf "[Service]\nEnvironment=\"HTTPS_PROXY=http://192.168.5.2:7897\"\nEnvironment=\"HTTP_PROXY=http://192.168.5.2:7897\"\nEnvironment=\"NO_PROXY=localhost,127.0.0.1,::1\"\n" > /etc/systemd/system/docker.service.d/http-proxy.conf'
+   colima ssh -- sudo systemctl daemon-reload && colima ssh -- sudo systemctl restart docker
+   ```
+4. **挂载只覆盖 `$HOME`**：`-v /tmp/xxx:/app/data` 里的文件不会出现在宿主机上（写进了虚拟机内部），
+   数据卷路径要放在 `$HOME` 下。
+
+还有一个测试陷阱：在 Mac 上 `colima ssh -- curl 127.0.0.1:8765` 会打到 **Mac 自己的** 8765
+（colima 把虚拟机 localhost 转发到了宿主 localhost），看起来"容器扫描到 59 台设备"其实是宿主服务的结果。
+探测 host 网络的容器要用 `docker exec` 进容器内部。`tests/docker_smoke.sh` 已经处理好这几点。
 
 ### 持久化与环境变量
 
