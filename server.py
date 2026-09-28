@@ -42,7 +42,7 @@ import scanner  # noqa: E402
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 MANAGER = scanner.ScanManager(max_jobs=60)
 # 设备台账：长期保存扫到过的设备（含已掉线的），支持人工编辑，落盘 data/devices.json

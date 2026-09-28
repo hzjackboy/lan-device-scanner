@@ -76,7 +76,7 @@ ctx.fetch = (url) => {
   fetched.push(String(url));
   if (String(url).includes('/api/history')) return Promise.resolve({ ok: true, json: async () => ({ scans }) });
   if (String(url).includes('/api/status')) return Promise.resolve({ ok: true, json: async () => ({
-    version: '1.0.0', platform: 'darwin', has_ping: true, is_root: false, active_scan: null,
+    version: '1.1.0', platform: 'darwin', has_ping: true, is_root: false, active_scan: null,
     port_profiles: { fast: 10, full: 67 },
     interfaces: [{ name: 'en0', ip: '10.0.0.50', cidr: '10.0.0.0/24', hosts: 254, is_default: true }],
   }) });
@@ -94,7 +94,7 @@ ctx.fetch = (url) => {
 
   // --- 关于页 ---
   await ctx.loadAbout();
-  check('关于页版本', els['about-env'].innerHTML.includes('v1.0.0'));
+  check('关于页版本', els['about-env'].innerHTML.includes('v1.1.0'));
   check('关于页网段', els['about-ifaces'].innerHTML.includes('10.0.0.0/24'));
   check('API 文档渲染', els['about-api'].innerHTML.includes('/api/scan') && els['about-api'].innerHTML.includes('DELETE'));
 
