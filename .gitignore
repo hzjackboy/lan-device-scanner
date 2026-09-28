@@ -18,3 +18,6 @@ env/
 .vscode/
 *.swp
 *~
+
+# docker buildx 的构建器状态 / 缓存（推到 Docker Hub 时用，不进仓库）
+.buildx/

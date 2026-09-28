@@ -9,6 +9,8 @@
   `tests/ui_sidebar.test.js` 的桩数据、`Dockerfile` 的 `image.version`；再补 `CHANGELOG.md` 并打 tag
 - **服务**：由桌面脚本 `~/Desktop/局域网扫描服务.command` 管理，端口 8765
   （日志 `data/server.log`，进程号 `data/server.pid`）
+- **镜像**：Docker Hub 公开镜像 `hzjackboy/lan-device-scanner`（amd64 + arm64 多架构），
+  发版用 `./docker-push.sh hzjackboy 1.1.0 latest` 一条命令推
 - **仓库**：私有 `hzjackboy/lan-device-scanner`，本机 `gh` 已登录该账号
 - **数据**：`data/devices.json`（设备台账，含真实 MAC/IP/主机名）、`data/auto.json`（定时重扫配置）
   —— 都在 `.gitignore` 里，**绝不要提交**
@@ -63,6 +65,17 @@
 7. **台账信息要在所有出口都贴一遍**：`GET /api/scan/<id>`、**SSE `/events`**、
    前端 `applySnapshot` 记录 `scanId`。漏掉任一处，页面上的人工别名就会不同步
    （SSE 漏贴过、编辑后不重取快照也漏过，都已修）。
+8. **推 Docker Hub 的代理问题**（三个结论，别再试错）：
+   ① BuildKit 的 registry 解析器**不认** `HTTP(S)_PROXY`，`--driver-opt env.HTTPS_PROXY=...`
+   大小写都加也没用，照样 `dial tcp ...:443: i/o timeout`；走代理的是 **docker CLI** 那次
+   `auth.docker.io` token 请求，所以必须在带 `HTTPS_PROXY` 的本机 shell 里跑。
+   ② 因此**不能用 `docker-container` 驱动推镜像**（推的是 VM 里的 buildkitd，不走代理），
+   要用 **`docker` 驱动**（`--builder $(docker context show)`）。
+   ③ Docker 29 的 `docker` 驱动**已经支持** `--platform a,b --push` 一次生成并推送
+   manifest list，不用 build 两次再 `docker manifest create` 拼。
+   ④ 装了 buildx 插件后 `docker build` 会走 BuildKit 并写 `~/.docker/buildx`，
+   受限环境会报 `mkdir ...: operation not permitted` —— `tests/docker_smoke.sh` 和
+   `docker-push.sh` 都已 `export BUILDX_CONFIG=${PWD}/.buildx`（该目录已 gitignore）。
 
 ## API
 
@@ -81,4 +94,6 @@
 ~/Desktop/局域网扫描服务.command status    # 状态；start/stop/restart/open/toggle/log/help
 ./tests/run.sh                            # 跑测试（先在项目根目录）
 python3 update_oui.py                     # 刷新厂商库（需联网）
+./docker-push.sh hzjackboy 1.1.0 latest   # 推 Docker Hub 多架构镜像（需先 docker login）
+./tests/docker_smoke.sh                   # 容器冒烟测试（27 项）
 ```

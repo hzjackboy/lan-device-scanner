@@ -187,6 +187,21 @@ run.sh             启动脚本
 
 可以打包成镜像，仓库里已经带了 `Dockerfile` / `docker-compose.yml` / `.dockerignore`。
 
+### 直接拉现成的（多架构：amd64 + arm64）
+
+```bash
+docker run -d --name lan-scan --network host \
+  -v lan-scan-data:/app/data \
+  -e TZ=Asia/Shanghai \
+  --restart unless-stopped \
+  hzjackboy/lan-device-scanner:latest
+```
+
+然后浏览器打开 <http://127.0.0.1:8765>。镜像同时提供 `linux/amd64` 与 `linux/arm64`，
+NAS、x86 服务器、树莓派都能直接拉，Docker 会自己挑对应架构。
+
+### 自己构建
+
 ```bash
 docker build -t lan-device-scanner .
 docker run -d --name lan-scan --network host \
@@ -202,6 +217,40 @@ docker run -d --name lan-scan --network host \
 docker compose up -d      # 起来
 docker compose logs -f    # 看日志
 docker compose down       # 停掉
+```
+
+### 发布到 Docker Hub
+
+仓库里带了 `docker-push.sh`，一条命令构建 amd64 + arm64 并推送：
+
+```bash
+./docker-push.sh hzjackboy            # 推 1.1.0 和 latest
+./docker-push.sh hzjackboy 1.2.0      # 只推指定标签
+```
+
+脚本会自动探测本地代理、校验登录状态、选对 buildx 构建器。
+
+**为什么要专门写个脚本 —— 三个绕不开的坑：**
+
+1. **BuildKit 自己的 registry 解析器不认 `HTTP(S)_PROXY` 环境变量。**
+   给构建器加 `--driver-opt env.HTTPS_PROXY=...`（甚至大小写都写上）也没用，
+   照样报 `failed to fetch anonymous token: ... dial tcp x.x.x.x:443: i/o timeout`。
+   真正会走代理的，是 **docker CLI 自己**发起的那次 `auth.docker.io` token 请求。
+2. **因此不能用 `docker-container` 驱动推镜像**：那个驱动下推镜像的是虚拟机里的
+   buildkitd，它不走代理。要用 **`docker` 驱动**——CLI 走代理做鉴权、daemon 走它
+   自己的代理传层，两边才都通。
+3. **多架构不能分两次推再拼 manifest**：Docker 29 的 `docker` 驱动已经能一次
+   生成并推送 manifest list（`exporting manifest list ... done`），
+   没必要 build 两次、推两个临时架构标签、再 `docker manifest create` 拼起来。
+   实测 `--platform linux/amd64,linux/arm64 --push` 一条命令就够了。
+
+登录时也要带代理，密码填 **Access Token**（<https://hub.docker.com/settings/security> 生成），
+不是登录密码：
+
+```bash
+export HTTPS_PROXY=http://127.0.0.1:7897
+export HTTP_PROXY="${HTTPS_PROXY}"
+docker login -u hzjackboy
 ```
 
 ### ⚠️ 必须用 host 网络

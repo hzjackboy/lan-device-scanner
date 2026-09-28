@@ -20,6 +20,9 @@
 - **台账导出**：`/api/devices/export?format=csv|json`。
 - **桌面启动器**：`desktop/局域网扫描服务.command` 单文件搞定启动 / 停止 / 重启 / 打开页面 / 看日志。
 - **容器化部署**：`Dockerfile` + `docker-compose.yml`（**必须 host 网络**，否则 ARP 扫不到局域网）。
+- **Docker Hub 公开镜像**：`hzjackboy/lan-device-scanner`，同时提供 `linux/amd64` 与 `linux/arm64`
+  （NAS / x86 服务器 / 树莓派都能直接拉）。配套 `docker-push.sh` 一条命令构建并推送多架构镜像，
+  脚本会自动探测本地代理、校验登录、选对 buildx 构建器。
 - **测试**：`./tests/run.sh` 共 8 套 113 项检查（5 套离线 UI + 3 套联调），
   另有 `tests/docker_smoke.sh` 容器冒烟测试 27 项。
 - **`AGENTS.md`**：压缩后的项目上下文，新会话自动加载。

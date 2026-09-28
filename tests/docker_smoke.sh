@@ -18,6 +18,11 @@
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
+# buildx 把状态写在 ~/.docker/buildx，受限环境（沙箱 / CI）下不可写，
+# 装了 buildx 插件后 `docker build` 会走 BuildKit 并因此报
+# "mkdir /Users/xxx/.docker/buildx: operation not permitted"。放到工作区里绕开。
+export BUILDX_CONFIG="${BUILDX_CONFIG:-${PWD}/.buildx}"
+
 IMG="lan-device-scanner:test"
 NAME="lan-scan-test"
 PORT=8899
