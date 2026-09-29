@@ -14,7 +14,7 @@
 - **仓库**：私有 `hzjackboy/lan-device-scanner`，本机 `gh` 已登录该账号
 - **数据**：`data/devices.json`（设备台账，含真实 MAC/IP/主机名）、`data/auto.json`（定时重扫配置）
   —— 都在 `.gitignore` 里，**绝不要提交**
-- **测试**：`./tests/run.sh`（5 套离线 UI 测试 + 3 套联调；服务在跑时自动附带联调）
+- **测试**：`./tests/run.sh`（5 套离线 UI + 3 套联调 + 1 套启动脚本；服务在跑时自动附带联调）
 - **文档地图**：`PRD.md`（产品需求：目标 / 用户画像 / 19 条需求优先级 / 逐条验收标准 / 路线图）、
   `README.md`（安装使用与排错）、`CHANGELOG.md`（版本变更）、本文件（架构与踩坑）
 
@@ -29,7 +29,7 @@
 | `oui.py` | MAC 厂商库（内置表 + `oui.csv` 全量表）+ `infer_kind()` 设备类型推断 |
 | `update_oui.py` | 下载 IEEE 全量 OUI 到 `oui.csv`（已 gitignore，需要时跑一次） |
 | `static/` | 前端三件套（`index.html` / `style.css` / `app.js`），hash 路由 + SSE |
-| `desktop/` | 桌面启动器（单文件，菜单 + 命令行动作） |
+| `desktop/` | 桌面启动器（单文件）。顶部状态面板常驻 + 空闲每 3 秒原地重画；每个动作跑完都回菜单 |
 | `tests/` | node + DOM 桩测试（离线 UI）与联调脚本 |
 | `Dockerfile` / `docker-compose.yml` | 容器化部署（**必须 host 网络**，否则 ARP 扫不到局域网） |
 
@@ -53,6 +53,12 @@
 
 1. **macOS 自带 bash 3.2**：`$VAR` 后面紧跟中文全角字符时，会把该字符首字节吃进变量名，
    输出乱码。**shell 脚本里变量一律写 `${VAR}`**（`desktop/` 下的脚本已全部如此）。
+   还有两个相关的坑（`desktop/局域网扫描服务.command` 踩过）：
+   `read -t` **只认整数秒**（`-t 0.5` 报 invalid timeout specification）；
+   `read -t` **超时返回 1，不是常见的 128+SIGALRM=142** —— 它和 EOF 的退出码一模一样，
+   所以菜单循环只能靠「耗时是否等满超时秒数」区分超时与输入结束，用退出码判断会把
+   每次超时都当成 EOF 直接退出菜单（现象：状态面板不再自动刷新）。
+   回归测试见 `tests/launcher.test.sh`，用变体测试验过它确实能抓到这个 bug。
 2. macOS `arp -an` 会省略前导零（`8:9b:4b:...`），必须按 octet 补零，否则 OUI 查不到厂商
    （`scanner.normalize_mac` / `oui.normalize`）。
 3. NetBIOS 应答**不回显 question 段**，要按 header 的 `qdcount` 跳过，否则读出 `ROUP` 之类垃圾名。
@@ -100,8 +106,7 @@
 ```bash
 ./run.sh                                  # 启动服务（或桌面脚本）
 ~/Desktop/局域网扫描服务.command status    # 状态；start/stop/restart/open/toggle/log/help
-./tests/run.sh                            # 跑测试（先在项目根目录）
-python3 update_oui.py                     # 刷新厂商库（需联网）
-./docker-push.sh hzjackboy 1.1.0 latest   # 推 Docker Hub 多架构镜像（需先 docker login）
+./tests/run.sh                            # 跑全部测试（含启动脚本那套）
+./tests/launcher.test.sh                  # 只跑桌面启动脚本测试（12 项）
 ./tests/docker_smoke.sh                   # 容器冒烟测试（27 项）
 ```

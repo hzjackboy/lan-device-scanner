@@ -5,6 +5,10 @@
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
+# Finder / cron / 最小环境里 PATH 可能不含 Homebrew，而 node 就装在那边。
+# 不补的话会报 "node: command not found"，看起来像测试失败其实是环境问题。
+export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
+
 pass=0; fail=0
 for f in tests/ui_*.test.js; do
     printf '%-28s ' "$(basename "$f")"
@@ -25,6 +29,16 @@ if curl -fsS -m 3 http://127.0.0.1:8765/api/status >/dev/null 2>&1; then
     done
 else
     echo "（服务没在跑，跳过联调测试；先执行 ./run.sh 或桌面脚本）"
+fi
+
+echo
+echo "--- 桌面启动脚本（不依赖服务）---"
+printf '%-28s ' "launcher.test.sh"
+if ./tests/launcher.test.sh >/tmp/.t.log 2>&1; then
+    n=$(grep -c '✔' /tmp/.t.log)
+    echo "✅ 通过（$n 项）"; pass=$((pass+1))
+else
+    echo "❌ 失败"; sed 's/^/    /' /tmp/.t.log | grep -E '✘' | head -5; fail=$((fail+1))
 fi
 
 echo
