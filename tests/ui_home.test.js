@@ -19,13 +19,20 @@ const document = {
   querySelectorAll(sel){ if(sel==='.view') return views; if(sel==='.nav-item') return navItems; return []; },
   addEventListener(){},
 };
+const stored = {};
 const ctx = { document, console, setTimeout, clearTimeout, setInterval, clearInterval,
-  localStorage:{ getItem:()=>null, setItem(){} }, location:{ hash:'' }, Date, Map, Set, JSON, Math,
+  localStorage:{ getItem:(k)=> (k in stored ? stored[k] : null), setItem:(k,v)=>{ stored[k]=String(v); } },
+  location:{ hash:'' }, Date, Map, Set, JSON, Math,
   String, Number, Object, Array, parseInt, isNaN, fetch: () => Promise.reject(new Error('x')),
   window:{ addEventListener(){} } };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync('static/app.js','utf8'), ctx, { filename:'app.js' });
+
+// 展示方式切换的四个按钮（真实页面里由 index.html 提供，测试里补上）
+const modeButtons = ['list','l','m','s'].map((m) => { const b = makeEl('view-'+m); b.dataset.mode = m; return b; });
+const switchEl = document.getElementById('home-view-switch');
+switchEl.querySelectorAll = (sel) => (sel === 'button[data-mode]' ? modeButtons : []);
 
 const devices = [
   { ip:'10.0.0.1', mac:'02:00:00:00:00:01', vendor:'iKuai', hostname:'gateway', kind:'路由器 / 网关',
@@ -110,6 +117,41 @@ check('没设图标的设备仍用自动识别', grid.includes('💡') && grid.i
 // 详情弹窗里也要能看到人工图标
 ctx.showDetail({ ...devices[2], icon: '🦊' });
 check('详情弹窗显示人工图标', els['detail-body'].innerHTML.includes('🦊') && els['detail-body'].innerHTML.includes('人工指定'));
+
+// ---------- 首页展示方式：列表 / 大 / 中 / 小 ----------
+ctx.applyHomeMode();
+check('默认是小图标', run('state.homeMode') === 's' && els['home-grid'].dataset.mode === 's');
+check('默认时小图标按钮高亮', modeButtons.find(b=>b.dataset.mode==='s').classList.contains('on'));
+
+ctx.setHomeMode('l');
+check('切到大图标后 grid 的 data-mode 跟着变', els['home-grid'].dataset.mode === 'l');
+check('大图标按钮高亮、小图标取消高亮',
+  modeButtons.find(b=>b.dataset.mode==='l').classList.contains('on') &&
+  !modeButtons.find(b=>b.dataset.mode==='s').classList.contains('on'));
+check('选择写进了 localStorage', stored['home-mode'] === 'l');
+
+ctx.setHomeMode('list');
+check('切到列表', els['home-grid'].dataset.mode === 'list');
+check('列表按钮高亮', modeButtons.find(b=>b.dataset.mode==='list').classList.contains('on'));
+
+// 非法值要退回默认，不能把 grid 搞成没有样式的状态
+ctx.setHomeMode('bogus');
+check('非法模式退回小图标', els['home-grid'].dataset.mode === 's');
+
+// 重新进入页面时读回上次的选择
+stored['home-mode'] = 'm';
+ctx.initHomeMode();
+check('重新初始化时读回上次选择', els['home-grid'].dataset.mode === 'm');
+check('读回后对应按钮高亮', modeButtons.find(b=>b.dataset.mode==='m').classList.contains('on'));
+
+// 静态结构：按钮和样式缺一个，切换就会「点了没反应」
+const htmlSrc = fs.readFileSync('static/index.html', 'utf8');
+const cssSrc = fs.readFileSync('static/style.css', 'utf8');
+check('index.html 里有展示方式切换器', htmlSrc.includes('id="home-view-switch"'));
+for (const m of ['list', 'l', 'm', 's']) {
+  check(`切换器有 ${m} 按钮`, htmlSrc.includes(`data-mode="${m}"`));
+  check(`样式里定义了 ${m} 模式`, cssSrc.includes(`[data-mode="${m}"]`));
+}
 
 // 路由：默认落在首页
 check('默认视图是首页', ctx.viewFromHash() === 'home');

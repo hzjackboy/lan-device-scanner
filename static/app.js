@@ -43,6 +43,7 @@ const state = {
   homeSearch: '',
   homeOnlyOnline: true,
   homeGroup: '',
+  homeMode: 's',        // 首页展示方式：list / l / m / s
   homeSeen: new Set(),
   auto: null,
   autoDeadline: null,
@@ -158,6 +159,7 @@ function esc(text) {
 async function init() {
   bindEvents();
   initSidebar();
+  initHomeMode();
   switchView(viewFromHash(), { push: false });
   try {
     const info = await (await fetch('/api/status')).json();
@@ -436,6 +438,39 @@ function initSidebar() {
   $('collapse-btn').title = collapsed ? '展开侧边栏（Ctrl+B）' : '收起侧边栏（Ctrl+B）';
 }
 
+/* ---------- 首页展示方式：列表 / 大 / 中 / 小 图标 ----------
+   只改 #home-grid 的 data-mode，具体布局交给 CSS，
+   所以切换是瞬时的，不需要重新渲染（也不会打断正在看的滚动位置）。 */
+const HOME_MODES = ['list', 'l', 'm', 's'];
+
+function applyHomeMode() {
+  const mode = HOME_MODES.includes(state.homeMode) ? state.homeMode : 's';
+  const grid = $('home-grid');
+  if (grid && grid.dataset) grid.dataset.mode = mode;
+  const sw = $('home-view-switch');
+  if (!sw || !sw.querySelectorAll) return;
+  sw.querySelectorAll('button[data-mode]').forEach((b) => {
+    b.classList.toggle('on', b.dataset.mode === mode);
+  });
+}
+
+function setHomeMode(mode) {
+  state.homeMode = HOME_MODES.includes(mode) ? mode : 's';
+  try {
+    localStorage.setItem('home-mode', state.homeMode);
+  } catch (_) { /* 忽略 */ }
+  applyHomeMode();
+}
+
+function initHomeMode() {
+  let saved = '';
+  try {
+    saved = localStorage.getItem('home-mode') || '';
+  } catch (_) { /* 忽略 */ }
+  if (HOME_MODES.includes(saved)) state.homeMode = saved;
+  applyHomeMode();
+}
+
 function toggleSidebar() {
   const app = $('app');
   const collapsed = app.classList.toggle('collapsed');
@@ -537,6 +572,12 @@ function bindEvents() {
   $('home-only-online').addEventListener('change', (e) => {
     state.homeOnlyOnline = e.target.checked;
     renderHome();
+  });
+  // 展示方式：列表 / 大 / 中 / 小 图标
+  $('home-view-switch').addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('button[data-mode]') : null;
+    if (!btn) return;
+    setHomeMode(btn.dataset.mode);
   });
   $('home-group').addEventListener('change', (e) => {
     state.homeGroup = e.target.value;

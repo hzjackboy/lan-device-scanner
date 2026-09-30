@@ -123,6 +123,29 @@
               <option value="kind">按设备类型分组</option>
               <option value="vendor">按厂商分组</option>
             </select>
+            <!-- 展示方式：列表 / 大 / 中 / 小 图标 -->
+            <div class="view-switch" id="home-view-switch" role="group" aria-label="设备展示方式">
+              <button type="button" data-mode="list" title="列表：一行一台，信息最全" aria-label="列表">
+                <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
+                  <rect x="2" y="3" width="12" height="2" rx="1"/><rect x="2" y="7" width="12" height="2" rx="1"/><rect x="2" y="11" width="12" height="2" rx="1"/>
+                </svg>
+              </button>
+              <button type="button" data-mode="l" title="大图标" aria-label="大图标">
+                <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
+                  <rect x="3" y="3" width="10" height="10" rx="2"/>
+                </svg>
+              </button>
+              <button type="button" data-mode="m" title="中图标" aria-label="中图标">
+                <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
+                  <rect x="4.5" y="4.5" width="7" height="7" rx="1.5"/>
+                </svg>
+              </button>
+              <button type="button" data-mode="s" title="小图标" aria-label="小图标">
+                <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
+                  <rect x="6" y="6" width="4" height="4" rx="1"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div class="auto-bar">

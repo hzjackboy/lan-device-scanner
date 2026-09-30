@@ -675,7 +675,39 @@ tr.is-running { background: rgba(34, 211, 238, .06); }
 .home-tools input[type="search"] { width: 226px; }
 .home-tools select { max-width: 170px; }
 
-/* 方块墙：边长 = 原来的一半，面积正好 1/4 */
+/* 展示方式切换：列表 / 大 / 中 / 小 图标 */
+.view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #0e141c;
+  flex: 0 0 auto;
+}
+.view-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.view-switch button:hover { color: var(--text); background: rgba(255, 255, 255, .06); }
+.view-switch button.on {
+  color: var(--text);
+  background: rgba(56, 189, 248, .16);
+  border-color: var(--accent);
+}
+.view-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* 方块墙：默认小图标（边长 = 原来的一半，面积正好 1/4） */
 .home-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
@@ -684,7 +716,15 @@ tr.is-running { background: rgba(34, 211, 238, .06); }
   max-height: 68vh;
   overflow: auto;
   padding: 2px;
+  scrollbar-gutter: stable;
 }
+
+/* 四种展示方式只靠 CSS 切换，切的时候不重新渲染，所以是瞬时的。
+   小图标那条同时写进 .home-grid 基础规则里，保证 JS 还没跑时也不会塌成一列。 */
+.home-grid[data-mode="s"] { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+.home-grid[data-mode="m"] { grid-template-columns: repeat(auto-fill, minmax(106px, 1fr)); gap: 8px; }
+.home-grid[data-mode="l"] { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.home-grid[data-mode="list"] { grid-template-columns: 1fr; gap: 4px; max-height: 72vh; }
 
 .dev-card {
   aspect-ratio: 1 / 1;
@@ -746,10 +786,51 @@ tr.is-running { background: rgba(34, 211, 238, .06); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 这个尺寸放不下这行信息，收进 title 提示和详情弹窗 */
+/* 小图标放不下这几行，默认收起（详情仍在 title 提示与详情弹窗里） */
 .dev-kind,
 .dev-vendor,
-.dev-ports { display: none; }
+.dev-ports {
+  display: none;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 中图标：多显示一行「设备类型」 ---------- */
+/* 中/大都不再强制正方形：列宽被 1fr 撑开后，正方形会有近一半是空的 */
+.home-grid[data-mode="m"] .dev-card { aspect-ratio: auto; min-height: 94px; padding: 8px 9px; }
+.home-grid[data-mode="m"] .dev-kind { display: block; font-size: 9.5px; color: var(--muted); }
+.home-grid[data-mode="m"] .dev-ico { font-size: 20px; }
+.home-grid[data-mode="m"] .dev-name { font-size: 11px; margin-top: 4px; }
+.home-grid[data-mode="m"] .dev-ip { font-size: 9.5px; }
+
+/* ---------- 大图标：设备类型 + 厂商 ---------- */
+/* 大格子不再强制正方形：1440 下正方形能到 230px，内容只占一半，空一大截 */
+.home-grid[data-mode="l"] .dev-card { aspect-ratio: auto; min-height: 124px; padding: 10px 11px; }
+.home-grid[data-mode="l"] .dev-kind,
+.home-grid[data-mode="l"] .dev-vendor { display: block; font-size: 10px; color: var(--muted); }
+.home-grid[data-mode="l"] .dev-ico { font-size: 26px; }
+.home-grid[data-mode="l"] .dev-name { font-size: 12.5px; margin-top: 6px; }
+.home-grid[data-mode="l"] .dev-ip { font-size: 10.5px; }
+
+/* ---------- 列表：一行一台，横排 ---------- */
+.home-grid[data-mode="list"] .dev-card {
+  aspect-ratio: auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 2.4fr) minmax(0, 1.3fr) minmax(0, 1.6fr) minmax(0, 1.4fr);
+  align-items: center;
+  column-gap: 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+}
+.home-grid[data-mode="list"] .dev-card:hover { transform: none; }
+.home-grid[data-mode="list"] .dev-card-top { grid-column: 1; width: auto; align-items: center; gap: 6px; }
+.home-grid[data-mode="list"] .dev-ico { font-size: 17px; }
+.home-grid[data-mode="list"] .dev-name { grid-column: 2; margin-top: 0; font-size: 12.5px; }
+.home-grid[data-mode="list"] .dev-ip { grid-column: 3; font-size: 11.5px; }
+.home-grid[data-mode="list"] .dev-kind { grid-column: 4; display: block; font-size: 11.5px; color: var(--muted); }
+.home-grid[data-mode="list"] .dev-vendor { grid-column: 5; display: block; font-size: 11.5px; color: var(--muted); }
 
 .group-title {
   grid-column: 1 / -1;
@@ -1070,3 +1151,94 @@ button.ghost.danger { color: #fca5a5; border-color: rgba(248, 113, 113, .3); }
 button.ghost.danger:hover:not(:disabled) { border-color: var(--red); color: #fecaca; background: rgba(248, 113, 113, .08); }
 #dev-table tr.picked { background: rgba(59, 130, 246, .09); }
 #dev-table tr.picked:hover { background: rgba(59, 130, 246, .14); }
+
+/* ============================================================
+   响应式适配：按常见分辨率收口
+   参考宽度：手机 360/390、平板 768/820、笔记本 1280/1366/1440、
+             桌面 1920、大屏 2560、带鱼屏 3440
+   ============================================================ */
+
+/* 顶栏：标题不换行，右侧信息过长就省略号，别把标题挤成两行 */
+.topbar h1 { white-space: nowrap; }
+#host-info { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 大屏别把内容限死在 1560px —— 2560 上两边会空出近 400px。
+   逐级放宽，既用上横向空间，又不会让文字行长失控。 */
+@media (min-width: 1800px) {
+  main { max-width: 1840px; }
+}
+@media (min-width: 2200px) {
+  main { max-width: 2200px; }
+}
+@media (min-width: 2800px) {
+  main { max-width: none; padding-left: 32px; padding-right: 32px; }
+}
+
+/* 平板（768 左右）：统计卡片两列，工具条铺满一行 */
+@media (max-width: 900px) {
+  .home-tools { gap: 6px; }
+  .home-tools input[type="search"] { width: 100%; }
+  .home-stats { gap: 8px; }
+}
+
+/* 手机：方块墙不再自己滚（内层滚动在手机上很难操作，还会切掉最后一行），
+   改由整页滚动；同时把每种尺寸的格子放宽一点，免得一行塞太多看不清。 */
+@media (max-width: 720px) {
+  .home-grid {
+    max-height: none;
+    overflow: visible;
+    grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  }
+  .home-grid[data-mode="m"] { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+  .home-grid[data-mode="l"] { grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); }
+  .home-grid[data-mode="list"] { max-height: none; overflow: visible; }
+  /* 列表在窄屏只留「图标 + 名称 + IP」，类型与厂商挤不下 */
+  .home-grid[data-mode="list"] .dev-card {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 10px;
+    padding: 8px 10px;
+  }
+  .home-grid[data-mode="list"] .dev-card-top { grid-column: 1; }
+  .home-grid[data-mode="list"] .dev-name { grid-column: 2; }
+  .home-grid[data-mode="list"] .dev-ip { grid-column: 3; }
+  .home-grid[data-mode="list"] .dev-kind,
+  .home-grid[data-mode="list"] .dev-vendor { display: none; }
+  .view-switch { margin-left: auto; }
+
+  /* 设备台账表有 12 列，手机上横向滚动很难用；只留最关键的几列。
+     分组行是单个 colspan 单元格，不受 nth-child 影响。 */
+  #dev-table th:nth-child(4), #dev-table td:nth-child(4),
+  #dev-table th:nth-child(6), #dev-table td:nth-child(6),
+  #dev-table th:nth-child(7), #dev-table td:nth-child(7),
+  #dev-table th:nth-child(8), #dev-table td:nth-child(8),
+  #dev-table th:nth-child(10), #dev-table td:nth-child(10),
+  #dev-table th:nth-child(11), #dev-table td:nth-child(11) { display: none; }
+  #dev-table td { padding: 7px 6px; }
+  /* 操作按钮在窄屏收窄，并限制名称列宽度，否则表格还是会横向溢出 */
+  #dev-table button.mini { padding: 3px 7px; font-size: 11.5px; }
+  #dev-table .history-actions { gap: 5px; }
+  #dev-table .alias {
+    max-width: 118px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* 更窄的手机：状态与关注也收掉，保证「名称 / IP / 操作」不挤 */
+@media (max-width: 480px) {
+  #dev-table th:nth-child(2), #dev-table td:nth-child(2),
+  #dev-table th:nth-child(9), #dev-table td:nth-child(9) { display: none; }
+}
+
+/* 窄手机：顶栏那串本机信息太长，先收起来，需要时去「关于」页看 */
+@media (max-width: 560px) {
+  #host-info { display: none; }
+  main { padding: 14px 12px 32px; }
+  .topbar { padding: 10px 14px; }
+  /* 统计卡片按内容自适应宽度：「已知主机名」这种长标签在等宽卡片里会折成两行 */
+  .home-stats { gap: 8px; }
+  .home-stats .stat { flex: 0 1 auto; min-width: 0; padding: 6px 10px; }
+  .home-stats .stat span { white-space: nowrap; }
+}
+
