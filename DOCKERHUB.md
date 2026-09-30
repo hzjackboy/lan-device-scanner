@@ -9,6 +9,11 @@
 > 路由器后台只给你一份 DHCP 租约列表（IP + 主机名），既没有厂商也没有历史。
 > 这个工具补的就是这块：**认出是什么设备，并且记住它**。
 
+![界面预览](https://raw.githubusercontent.com/hzjackboy/lan-device-scanner/main/docs/screenshot-home.png)
+
+<p align="center"><em>首页：左边是在线/离线分布，右边是设备总览（可按列表 / 大 / 中 / 小四种密度展示）。
+图为「演示模式」的假数据，用来展示界面。</em></p>
+
 ---
 
 ## 快速开始

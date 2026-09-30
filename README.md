@@ -8,6 +8,11 @@
 打开页面 → 选网段 → 点"开始扫描"，设备会一台台实时冒出来：IP、MAC、厂商、
 主机名、设备类型、开放端口、延迟、发现方式，还有一张网段分布热力图。
 
+![界面预览](docs/screenshot-home.png)
+
+> 图为**演示模式**的假数据（不需要真实网络就能体验全部界面）。设备总览支持
+> 列表 / 大 / 中 / 小四种展示密度。
+
 ```bash
 git clone https://github.com/hzjackboy/lan-device-scanner.git
 cd lan-device-scanner
