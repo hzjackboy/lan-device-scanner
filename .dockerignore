@@ -9,5 +9,7 @@ __pycache__/
 oui.csv
 desktop/
 tests/
+docs/
+*.md
 docker-compose.yml
 Dockerfile
