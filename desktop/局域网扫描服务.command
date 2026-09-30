@@ -26,10 +26,12 @@
 # Finder 启动的终端 PATH 可能不含 Homebrew，补一下
 export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
 
-# 项目目录：需要改路径时改这里，或者设环境变量 LAN_SCAN_PROJECT
-PROJECT_DIR="${LAN_SCAN_PROJECT:-/Users/you/lan-scan}"
-# 兜底：从仓库里的 desktop/ 目录直接跑时，用它的上一级
-if [ ! -d "${PROJECT_DIR}" ]; then
+# 项目目录按这个顺序找：
+#   1. 环境变量 LAN_SCAN_PROJECT —— 把脚本复制到桌面时，由那份「指针」脚本设好
+#   2. 脚本所在目录的上一级 —— 直接在仓库的 desktop/ 里跑，或者仓库里双击
+# 这里不写死任何绝对路径，换台机器 / 换个用户名都不用改代码。
+PROJECT_DIR="${LAN_SCAN_PROJECT:-}"
+if [ -z "${PROJECT_DIR}" ] || [ ! -f "${PROJECT_DIR}/server.py" ]; then
     PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
 fi
 PORT=8765
@@ -53,9 +55,12 @@ warn() { printf '%s!%s %s\n' "${YELLOW}" "${RESET}" "$*"; }
 err()  { printf '%s✘%s %s\n' "${RED}" "${RESET}" "$*"; }
 
 # ---------- 基础检查 ----------
-if [ ! -d "${PROJECT_DIR}" ]; then
-    err "找不到项目目录：${PROJECT_DIR}"
-    say "   请修改本脚本里的 PROJECT_DIR"
+if [ ! -f "${PROJECT_DIR}/server.py" ]; then
+    err "找不到项目目录（里面应该有 server.py）：${PROJECT_DIR}"
+    say "   这个脚本会先看环境变量 LAN_SCAN_PROJECT，再找自己所在目录的上一级。"
+    say "   把脚本复制到别处（比如桌面）时，用一份设好该变量的指针脚本调用它，例如："
+    say "       export LAN_SCAN_PROJECT=/你的路径/局域网模拟器"
+    say "       exec \"\${LAN_SCAN_PROJECT}/desktop/局域网扫描服务.command\" \"\$@\""
     exit 1
 fi
 cd "${PROJECT_DIR}" || exit 1
