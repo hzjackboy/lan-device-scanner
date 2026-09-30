@@ -248,6 +248,14 @@ docker compose down       # 停掉
 
 脚本会自动探测本地代理、校验登录状态、选对 buildx 构建器。
 
+**仓库页的说明也在同一条命令里同步**：`docker push` 只推镜像层，**不带仓库元数据**，
+不主动设置的话 Hub 页面上既没有副标题也没有 Overview（只显示 `No overview available`）。
+脚本推完镜像后会调 Hub 的 REST API，把 [`DOCKERHUB.md`](DOCKERHUB.md) 设成 Overview 正文、
+再给一个副标题。改说明只要改 `DOCKERHUB.md`，下次推送自动生效。
+
+> 副标题上限是 **100 字节**（不是 100 字）—— 中文一个字 3 字节，所以最多 33 个汉字，
+> 写长了 API 会报 `Exceeded max number of bytes 100`。脚本里有按字节截断兜底。
+
 **为什么要专门写个脚本 —— 三个绕不开的坑：**
 
 1. **BuildKit 自己的 registry 解析器不认 `HTTP(S)_PROXY` 环境变量。**

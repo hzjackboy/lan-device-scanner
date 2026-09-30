@@ -38,12 +38,22 @@ else
   TAGS=("1.3.0" "latest")
 fi
 
-# buildx 默认把状态写在 ~/.docker/buildx，受限环境（沙箱/CI）下不可写，放到工作区里
-export BUILDX_CONFIG="${BUILDX_CONFIG:-${PWD}/.buildx}"
+# 以脚本所在目录为项目根目录（构建上下文、DOCKERHUB.md 都按它找），
+# 这样从任何地方调用都行
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ ! -d "${PROJECT_DIR}" ]; then
+  echo "进不去项目目录：${PROJECT_DIR}" >&2
+  exit 1
+fi
+cd "${PROJECT_DIR}"
 
-say() { printf '\033[36m▸\033[0m %s\n' "$1"; }
-ok()  { printf '\033[32m✔\033[0m %s\n' "$1"; }
-die() { printf '\033[31m✘\033[0m %s\n' "$1" >&2; exit 1; }
+# buildx 默认把状态写在 ~/.docker/buildx，受限环境（沙箱/CI）下不可写，放到工作区里
+export BUILDX_CONFIG="${BUILDX_CONFIG:-${PROJECT_DIR}/.buildx}"
+
+say()  { printf '\033[36m▸\033[0m %s\n' "$1"; }
+ok()   { printf '\033[32m✔\033[0m %s\n' "$1"; }
+warn() { printf '\033[33m!\033[0m %s\n' "$1"; }
+die()  { printf '\033[31m✘\033[0m %s\n' "$1" >&2; exit 1; }
 
 # ── 1. docker 在不在 ────────────────────────────────────────────
 docker info >/dev/null 2>&1 || die "docker 连不上，先启动 colima（colima start）或 Docker Desktop"
@@ -135,6 +145,85 @@ docker buildx build \
   .
 
 ok "推送完成"
+
+# ── 5. 同步 Docker Hub 仓库页的说明 ────────────────────────────
+# docker push 只推镜像层，**不带仓库元数据**。不主动设置的话，Hub 页面上
+# 既没有副标题也没有 Overview，只会显示 "No overview available"。
+# 这里用 Hub 的 REST API 把 DOCKERHUB.md 设成 Overview 正文。
+# 这一步失败不影响镜像（镜像已经推上去了），所以只告警不中断。
+# Docker Hub 的副标题上限是 **100 字节**（不是 100 字）。
+# 中文一个字 3 字节，所以这里最多 33 个汉字 —— 写长了 API 会报
+# "Exceeded max number of bytes 100"。下面 python 里还有一层按字节截断兜底。
+SHORT_DESC="零依赖的局域网设备扫描器：认出设备、记住它"
+
+hub_credential() {
+  [ -n "${STORE}" ] && command -v "docker-credential-${STORE}" >/dev/null 2>&1 || return 1
+  printf '%s' "${DOCKER_SERVER}" | "docker-credential-${STORE}" get 2>/dev/null \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin).get("Secret",""))' 2>/dev/null
+}
+
+sync_hub_meta() {
+  local overview="${PROJECT_DIR:-.}/DOCKERHUB.md"
+  [ -f "${overview}" ] || overview="DOCKERHUB.md"
+  if [ ! -f "${overview}" ]; then
+    warn "没找到 DOCKERHUB.md，跳过仓库说明同步"
+    return 0
+  fi
+
+  local secret
+  secret="$(hub_credential)" || true
+  if [ -z "${secret}" ]; then
+    warn "读不到 Docker Hub 令牌，跳过仓库说明同步"
+    return 0
+  fi
+
+  # 登录换 JWT。令牌走环境变量传给 python，避免出现在命令行参数里（ps 能看到）
+  local login_body jwt
+  login_body="$(HUB_USER="${USER_NAME}" HUB_TOKEN="${secret}" python3 -c \
+    'import json,os;print(json.dumps({"username":os.environ["HUB_USER"],"password":os.environ["HUB_TOKEN"]}))' 2>/dev/null)"
+  jwt="$(curl -s -m 25 -X POST "https://hub.docker.com/v2/users/login/" \
+      -H 'Content-Type: application/json' --data-binary "${login_body}" 2>/dev/null \
+    | python3 -c 'import sys,json
+try: print(json.load(sys.stdin).get("token",""))
+except Exception: print("")' 2>/dev/null)"
+  if [ -z "${jwt}" ]; then
+    warn "拿不到 Docker Hub JWT，跳过仓库说明同步（镜像已推送成功）"
+    return 0
+  fi
+
+  local body
+  body="$(HUB_DESC="${SHORT_DESC}" HUB_FILE="${overview}" python3 -c '
+import json, os
+
+full = open(os.environ["HUB_FILE"], encoding="utf-8").read()
+
+# 副标题硬上限 100 字节；按字节截断且不能截断多字节字符
+desc = os.environ["HUB_DESC"]
+raw = desc.encode("utf-8")
+if len(raw) > 100:
+    raw = raw[:100]
+    while raw:
+        try:
+            desc = raw.decode("utf-8")
+            break
+        except UnicodeDecodeError:
+            raw = raw[:-1]
+
+print(json.dumps({"description": desc, "full_description": full}))' 2>/dev/null)"
+
+  if curl -s -m 30 -o /dev/null -w '%{http_code}' -X PATCH \
+      "https://hub.docker.com/v2/repositories/${REPO}/" \
+      -H "Authorization: JWT ${jwt}" -H 'Content-Type: application/json' \
+      --data-binary "${body}" 2>/dev/null | grep -q '^200$'; then
+    ok "已同步仓库说明（副标题 + Overview 来自 DOCKERHUB.md）"
+  else
+    warn "仓库说明同步失败（镜像已推送成功，不影响拉取）"
+  fi
+}
+
+say "同步 Docker Hub 仓库页说明"
+sync_hub_meta
+
 echo
 echo "  拉取：docker pull ${REPO}:${TAGS[0]}"
 echo "  运行：docker run -d --name lan-scan --network host -v lan-scan-data:/app/data ${REPO}:${TAGS[0]}"

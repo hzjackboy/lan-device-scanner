@@ -16,7 +16,8 @@
   —— 都在 `.gitignore` 里，**绝不要提交**
 - **测试**：`./tests/run.sh`（5 套离线 UI + 3 套联调 + 1 套启动脚本；服务在跑时自动附带联调）
 - **文档地图**：`PRD.md`（产品需求：目标 / 用户画像 / 19 条需求优先级 / 逐条验收标准 / 路线图）、
-  `README.md`（安装使用与排错）、`CHANGELOG.md`（版本变更）、本文件（架构与踩坑）
+  `README.md`（安装使用与排错）、`DOCKERHUB.md`（Docker Hub 仓库页的 Overview 正文，
+  由 `docker-push.sh` 推送上去）、`CHANGELOG.md`（版本变更）、本文件（架构与踩坑）
 
 ## 架构
 
@@ -105,6 +106,13 @@
    （`docker-push.sh` 已改成先问 `docker-credential-<store>`，再退回看 `auths`）。
    另外 `docker login` 一行命令要写成 `HTTPS_PROXY=... docker login -u X`，
    **分行粘贴会丢换行**，zsh 报 `export: not valid in this context: -u`。
+   ⑥ **仓库页说明要单独推**：`docker push` 只推镜像层，**不带任何仓库元数据**。
+   不主动设置的话，Hub 页面上既没有副标题也没有 Overview（只显示 "No overview available"）。
+   `docker-push.sh` 现在会在推完镜像后用 Hub 的 REST API 把 `DOCKERHUB.md` 设成 Overview。
+   两个限制：副标题 `description` 上限是 **100 字节**（不是 100 字！一个汉字 3 字节，
+   写长了报 `Exceeded max number of bytes 100`，脚本里有按字节截断兜底）；
+   认证要先 `POST /v2/users/login/` 用「用户名 + PAT」换 JWT，再用
+   `Authorization: JWT <token>` 调 `PATCH /v2/repositories/<ns>/<repo>/`。
 
 ## API
 
