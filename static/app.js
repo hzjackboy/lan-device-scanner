@@ -96,6 +96,13 @@ const DEVICE_ICONS = [
   [['物联网', 'mqtt', 'iot', 'esp', '模块', '智能家居', 'homekit'], '🧩'],
 ];
 
+// 手动选图标时的候选。用自动识别那套图标打底（保证风格一致），再补一些常用的。
+const ICON_CHOICES = [
+  ...new Set(DEVICE_ICONS.map(([, ico]) => ico)),
+  '❔', '🖥', '📻', '🎵', '🎧', '☎️', '🗃', '💾', '🔋', '🌐',
+  '🤖', '📊', '⌨️', '🖱', '🧊', '🚗', '👤', '🏢', '🔦', '🧯',
+];
+
 const API_DOCS = [
   ['GET', '/api/status', '服务信息、本机网段、ping 是否可用'],
   ['GET', '/api/interfaces', '可扫描网段列表'],
@@ -509,6 +516,20 @@ function bindEvents() {
     if (e.target === $('edit-dialog')) $('edit-dialog').close();
   });
 
+  // 图标选择器：点图标即选中；手输/粘贴 emoji 也跟着高亮
+  $('icon-pick').addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('.icon-chip') : null;
+    if (!btn) return;
+    $('edit-icon').value = btn.dataset.icon || '';
+    renderIconPicker();
+  });
+  $('edit-icon').addEventListener('input', renderIconPicker);
+  $('edit-icon-auto').addEventListener('click', () => {
+    $('edit-icon').value = '';
+    renderIconPicker();
+    $('edit-icon').focus();
+  });
+
   $('home-search').addEventListener('input', (e) => {
     state.homeSearch = e.target.value.trim().toLowerCase();
     renderHome();
@@ -778,6 +799,9 @@ function applySnapshot(snap) {
 
 /* ------------------------- 首页：设备方块墙 ------------------------- */
 function deviceIcon(dev) {
+  // 人工指定的图标优先，其次才按设备类型/主机名/厂商猜
+  const manual = (dev && dev.icon ? String(dev.icon) : '').trim();
+  if (manual) return manual;
   const text = `${dev.kind || ''} ${dev.hostname || ''} ${dev.vendor || ''}`.toLowerCase();
   for (const [keywords, icon] of DEVICE_ICONS) {
     if (keywords.some((word) => text.includes(word))) return icon;
@@ -1004,6 +1028,7 @@ function showDetail(dev) {
   ];
   if (dev.note) rows.push(['备注', esc(dev.note)]);
   if (dev.alias) rows.push(['台账别名', esc(dev.alias)]);
+  if (dev.icon) rows.push(['图标', `<span class="dev-ico">${esc(dev.icon)}</span> <span class="dim">人工指定</span>`]);
   if (dev.category && dev.category !== '未分类') rows.push(['分类', esc(dev.category)]);
   if (dev.location) rows.push(['位置', esc(dev.location)]);
   if ((dev.tags || []).length) rows.push(['标签', (dev.tags || []).map((t) => `<span class="tag-mini">${esc(t)}</span>`).join(' ')]);
@@ -1208,7 +1233,7 @@ function deviceRow(dev) {
         title="${dev.starred ? '取消关注' : '标记为关注'}">${dev.starred ? '★' : '☆'}</button>
     </td>
     <td>
-      <div class="alias">${esc(dev.name)}</div>${hostSub}
+      <div class="alias"><span class="dev-ico">${deviceIcon(dev)}</span>${esc(dev.name)}</div>${hostSub}
       ${dev.location ? `<div class="loc-text">📍 ${esc(dev.location)}</div>` : ''}
       ${tags}
     </td>
@@ -1419,6 +1444,14 @@ async function refreshDevicesBadge() {
   } catch (_) { /* 忽略 */ }
 }
 
+// 图标选择器：把 ICON_CHOICES 画成一片可点的按钮，当前选中的高亮
+function renderIconPicker() {
+  const cur = ($('edit-icon').value || '').trim();
+  $('icon-pick').innerHTML = ICON_CHOICES.map((ico) =>
+    `<button type="button" class="icon-chip${ico === cur ? ' sel' : ''}"`
+    + ` data-icon="${esc(ico)}" title="用这个图标">${ico}</button>`).join('');
+}
+
 function openDeviceEditor(dev) {
   state.editingKey = dev.key;
   $('edit-title').textContent = `编辑设备 · ${dev.name}`;
@@ -1438,6 +1471,8 @@ function openDeviceEditor(dev) {
   $('edit-location').value = dev.location || '';
   $('edit-tags').value = (dev.tags || []).join(', ');
   $('edit-kind').value = dev.kind !== dev.auto_kind ? dev.kind : '';
+  $('edit-icon').value = dev.icon || '';
+  renderIconPicker();
   $('edit-note').value = dev.note || '';
   $('edit-starred').checked = !!dev.starred;
   $('edit-ignored').checked = !!dev.ignored;
@@ -1455,6 +1490,7 @@ async function saveDeviceEdit(extra = {}) {
     tags: $('edit-tags').value,
     note: $('edit-note').value.trim(),
     kind: $('edit-kind').value.trim(),
+    icon: $('edit-icon').value.trim(),
     starred: $('edit-starred').checked,
     ignored: $('edit-ignored').checked,
   };

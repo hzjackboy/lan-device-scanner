@@ -932,6 +932,44 @@ button.mini.primary-mini {
 .edit-flags { display: flex; gap: 18px; flex-wrap: wrap; }
 .edit-flags .inline { flex-direction: row; align-items: center; font-size: 12.5px; color: #c3cfdd; }
 
+/* 图标选择器：一片可点的 emoji 按钮，当前生效的那个高亮 */
+.icon-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 5px;
+  max-height: 148px;
+  overflow-y: auto;
+  padding: 7px;
+  background: #0e141c;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+button.icon-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  font-size: 17px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+}
+button.icon-chip:hover { background: rgba(255, 255, 255, .06); border-color: var(--line); }
+button.icon-chip.sel {
+  background: rgba(56, 189, 248, .16);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.icon-pick-foot { display: flex; gap: 8px; align-items: center; }
+.icon-pick-foot input[type="text"] { flex: 1; }
+.icon-pick-foot button.mini { flex: none; white-space: nowrap; }
+
+/* 设备管理列表里，图标跟在名称前面 */
+.alias .dev-ico { margin-right: 5px; }
+
 .edit-actions {
   display: flex;
   gap: 10px;

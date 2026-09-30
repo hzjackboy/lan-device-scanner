@@ -464,6 +464,13 @@
         <input type="text" id="edit-kind" list="kind-list" placeholder="留空则用自动识别结果" maxlength="40">
         <datalist id="kind-list"></datalist>
       </label>
+      <label class="full">图标（覆盖自动识别）
+        <div class="icon-pick" id="icon-pick"></div>
+        <div class="icon-pick-foot">
+          <input type="text" id="edit-icon" placeholder="点上面的图标，或直接粘贴一个 emoji" maxlength="16">
+          <button type="button" class="mini" id="edit-icon-auto">用自动识别</button>
+        </div>
+      </label>
       <label class="full">备注
         <textarea id="edit-note" rows="3" placeholder="采购日期、账号、注意事项…" maxlength="300"></textarea>
       </label>

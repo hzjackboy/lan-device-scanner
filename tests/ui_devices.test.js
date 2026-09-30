@@ -65,6 +65,7 @@ const ctx = { document, console, setTimeout, clearTimeout, setInterval, clearInt
           if (patch.location !== undefined) rec.location = patch.location;
           if (patch.ignored !== undefined) rec.ignored = patch.ignored;
           if (patch.kind !== undefined) rec.kind = patch.kind || rec.auto_kind;
+          if (patch.icon !== undefined) rec.icon = patch.icon;
         }
         return okJson({ ok:true, device: rec });
       }
@@ -82,7 +83,7 @@ const ctx = { document, console, setTimeout, clearTimeout, setInterval, clearInt
           ip:r.ip, mac:r.mac, vendor:r.vendor, hostname:r.hostname,
           alias:r.custom_name || '', category:r.category,
           kind:(r.kind && r.kind !== r.auto_kind) ? r.kind : r.auto_kind,
-          starred:!!r.starred, ignored:!!r.ignored, managed:true,
+          starred:!!r.starred, ignored:!!r.ignored, managed:true, icon:r.icon||'',
           ports:r.ports||[], services:r.services||[], rtt_ms:1, iface:r.iface||'en0',
           online:r.online, confirmed:true, only_arp:false, sources:['arp'], note:'',
           last_seen:r.last_seen, extra:{},
@@ -205,6 +206,48 @@ const checks = []; const check = (n, ok) => checks.push([n, ok]);
   RECORDS[0].ignored = true;
   await ctx.refreshManaged();
   check('标记忽略后首页不再显示该设备', !els['home-grid'].innerHTML.includes('客厅主路由'));
+
+  // ---------- 图标编辑 ----------
+  RECORDS[0].ignored = false;
+  delete RECORDS[0].icon;
+  await ctx.loadDevices();
+
+  // 打开弹窗时应把已有图标填进输入框，并把选择器画出来
+  ctx.openDeviceEditor(RECORDS[0]);
+  check('没设图标时输入框为空', els['edit-icon'].value === '');
+  check('图标选择器渲染出按钮', els['icon-pick'].innerHTML.includes('class="icon-chip'));
+  check('图标选择器含自动识别那套图标', els['icon-pick'].innerHTML.includes('📡'));
+
+  // 点调色板里的图标 → 高亮
+  els['edit-icon'].value = '🗄';
+  ctx.renderIconPicker();
+  check('选中调色板里的图标会高亮', /class="icon-chip sel" data-icon="🗄"/.test(els['icon-pick'].innerHTML));
+
+  // 也允许手输/粘贴调色板里没有的 emoji：不高亮，但要能存下来
+  els['edit-icon'].value = '🦊';
+  ctx.renderIconPicker();
+  check('调色板外的自定义 emoji 不高亮但仍可用', !els['icon-pick'].innerHTML.includes('icon-chip sel'));
+
+  // 保存要把 icon 一起发给后端
+  calls.length = 0;
+  await ctx.saveDeviceEdit();
+  const saveCall = calls.find(c => c.method === 'POST' && c.url.includes('/api/devices/'));
+  check('保存请求带上了 icon', !!saveCall && JSON.parse(saveCall.body).icon === '🦊');
+  check('后端记录里存下了图标', RECORDS[0].icon === '🦊');
+
+  // 人工图标要盖过自动识别（这台是 iKuai 路由器，自动识别是 📡）
+  await ctx.loadDevices();
+  check('列表里显示人工图标而不是自动图标',
+    els['dev-body'].innerHTML.includes('🦊') && !els['dev-body'].innerHTML.includes('📡'));
+
+  // 重新打开弹窗，应回填已保存的图标
+  ctx.openDeviceEditor(RECORDS[0]);
+  check('重开弹窗回填人工图标', els['edit-icon'].value === '🦊');
+
+  // 「用自动识别」清空
+  els['edit-icon'].value = '';
+  ctx.renderIconPicker();
+  check('清空后没有高亮项', !els['icon-pick'].innerHTML.includes('icon-chip sel'));
 
   let failed = 0;
   for (const [n, ok] of checks) { console.log((ok ? '✅' : '❌') + ' ' + n); if (!ok) failed++; }

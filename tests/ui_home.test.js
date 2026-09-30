@@ -98,6 +98,19 @@ const card = { dataset:{ ip:'10.0.0.57' }, closest: () => card };
 ctx.showDetail(devices[1]);
 check('详情弹窗有端口/服务信息', els['detail-body'].innerHTML.includes('80') && els['detail-body'].innerHTML.includes('esphomelib'));
 
+// ---------- 人工图标要盖过自动识别 ----------
+// 设备管理里给设备选了图标后，服务端会通过 apply_to_snapshot 把 icon 贴到扫描结果上
+run("state.homeGroup = ''; state.homeSearch = ''; state.homeOnlyOnline = true;");
+ctx.applySnapshot({ ...snap, devices: devices.map((d) =>
+  d.ip === '10.0.0.96' ? { ...d, icon: '🦊' } : d) });
+grid = els['home-grid'].innerHTML;
+check('人工图标盖过自动识别（摄像头不再用 📷）', grid.includes('🦊') && !grid.includes('📷'));
+check('没设图标的设备仍用自动识别', grid.includes('💡') && grid.includes('📡'));
+
+// 详情弹窗里也要能看到人工图标
+ctx.showDetail({ ...devices[2], icon: '🦊' });
+check('详情弹窗显示人工图标', els['detail-body'].innerHTML.includes('🦊') && els['detail-body'].innerHTML.includes('人工指定'));
+
 // 路由：默认落在首页
 check('默认视图是首页', ctx.viewFromHash() === 'home');
 ctx.switchView('home');

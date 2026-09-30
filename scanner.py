@@ -1245,7 +1245,7 @@ DEFAULT_CATEGORIES = [
 
 # 用户可以改的字段
 EDITABLE_FIELDS = ("name", "category", "location", "tags", "note", "kind",
-                   "starred", "ignored")
+                   "starred", "ignored", "icon")
 
 
 def device_key(dev: dict) -> str:
@@ -1337,9 +1337,11 @@ class DeviceRegistry:
             "note": custom.get("note") or "",
             "starred": bool(custom.get("starred")),
             "ignored": bool(custom.get("ignored")),
+            # 人工指定的图标（emoji）。空串 = 按设备类型自动识别
+            "icon": custom.get("icon") or "",
             "edited": bool(name or custom.get("kind") or custom.get("category") not in (None, "", "未分类")
                            or custom.get("location") or custom.get("tags") or custom.get("note")
-                           or custom.get("starred") or custom.get("ignored")),
+                           or custom.get("starred") or custom.get("ignored") or custom.get("icon")),
             "ports": list(rec.get("ports") or []),
             "services": list(rec.get("services") or []),
             "iface": rec.get("iface", ""),
@@ -1457,6 +1459,10 @@ class DeviceRegistry:
                     custom[field] = [str(t) for t in (value or [])][:12]
                 elif field in ("starred", "ignored"):
                     custom[field] = bool(value)
+                elif field == "icon":
+                    # 只存一个图标；限短一点，顺便挡住把整段文字塞进来的情况。
+                    # 16 个字符是给 ZWJ 组合 emoji（如 🧑‍💻）留的余量。
+                    custom[field] = str(value or "").strip()[:16]
                 else:
                     text = str(value or "").strip()[:200]
                     custom[field] = text
@@ -1525,6 +1531,7 @@ class DeviceRegistry:
                 dev["tags"] = list(custom.get("tags") or [])
                 dev["starred"] = bool(custom.get("starred"))
                 dev["ignored"] = bool(custom.get("ignored"))
+                dev["icon"] = custom.get("icon") or ""
                 if custom.get("kind"):
                     dev["kind"] = custom["kind"]
         return snapshot
