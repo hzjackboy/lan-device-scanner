@@ -3,7 +3,9 @@
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)：`主版本.次版本.修订号`。
 版本号在 `server.py` 的 `VERSION` 常量里，页脚与顶栏徽标由 `/api/status` 动态取。
 
-## [未发布]
+## [1.3.0] — 2026-09-30
+
+界面适配：设备总览可切四种密度，页面按常见分辨率重新收口。
 
 ### 新增
 
@@ -18,6 +20,12 @@
   - 方块墙在手机上不再自己滚（内层滚动难操作、还会切掉最后一行），改由整页滚动
   - 统计卡片在窄屏按内容自适应，`已知主机名` 这类长标签不再折行
   - 设备台账表在手机上从 12 列精简到 6 列（≤480px 再收到 4 列），不用横向滚也能看全
+
+### 测试
+
+`./tests/run.sh` 共 **9 套 157 项**（5 套离线 UI 145 项 + 3 套联调 + 1 套启动脚本 12 项）。
+界面部分另外用无头浏览器在 390 / 768 / 1366 / 1440 / 2560 五个宽度实测，
+四种密度与各断点都逐张截图核对过。
 
 ## [1.2.0] — 2026-09-30
 
@@ -117,6 +125,7 @@ macOS 上（Docker Desktop 与 colima 都一样）host 网络仍只是虚拟机�
 - OUI 厂商库：内置常用表 + IEEE 全量 `oui.csv`（4 万条，`python3 update_oui.py` 获取）。
 - 实时 Web 界面：SSE 推送扫描进度，设备逐台出现，含网段分布热力图、CSV/JSON 导出。
 
+[1.3.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.3.0
 [1.2.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.2.0
 [1.1.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.1.0
 [1.0.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.0.0

@@ -4,9 +4,9 @@
 # 用法：
 #   ./docker-push.sh <dockerhub用户名> [标签...]
 #
-#   ./docker-push.sh hzjackboy                # 默认推 1.2.0 和 latest
-#   ./docker-push.sh hzjackboy 1.2.0          # 只推 1.2.0
-#   ./docker-push.sh hzjackboy 1.2.0 latest   # 显式指定多个标签
+#   ./docker-push.sh hzjackboy                # 默认推 1.3.0 和 latest
+#   ./docker-push.sh hzjackboy 1.3.0          # 只推 1.3.0
+#   ./docker-push.sh hzjackboy 1.3.0 latest   # 显式指定多个标签
 #
 # 前置：已 docker login（见下面「代理」一节）、docker/colima 正在运行。
 #
@@ -27,7 +27,7 @@ USER_NAME="${1:-}"
 
 if [ -z "${USER_NAME}" ]; then
   echo "用法：./docker-push.sh <dockerhub用户名> [标签...]" >&2
-  echo "例如：./docker-push.sh hzjackboy 1.2.0 latest" >&2
+  echo "例如：./docker-push.sh hzjackboy 1.3.0 latest" >&2
   exit 1
 fi
 
@@ -35,7 +35,7 @@ REPO="${USER_NAME}/lan-device-scanner"
 if [ "$#" -gt 0 ]; then
   TAGS=("$@")
 else
-  TAGS=("1.2.0" "latest")
+  TAGS=("1.3.0" "latest")
 fi
 
 # buildx 默认把状态写在 ~/.docker/buildx，受限环境（沙箱/CI）下不可写，放到工作区里
