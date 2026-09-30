@@ -3,6 +3,50 @@
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)：`主版本.次版本.修订号`。
 版本号在 `server.py` 的 `VERSION` 常量里，页脚与顶栏徽标由 `/api/status` 动态取。
 
+## [1.2.0] — 2026-09-30
+
+发布镜像、打磨日常使用的两处体验（看状态、发图标），并补上产品文档。
+
+### 新增
+
+- **Docker Hub 公开镜像**：`hzjackboy/lan-device-scanner`，同时提供 `linux/amd64` 与 `linux/arm64`
+  （NAS / x86 服务器 / 树莓派都能直接拉）。配套 `docker-push.sh` 一条命令构建并推送多架构镜像，
+  脚本会自动探测本地代理、校验登录状态、选对 buildx 构建器。
+- **设备图标可人工指定**：设备管理编辑弹窗里提供 emoji 调色板（点选，也可粘贴任意 emoji），
+  留空则按设备类型自动识别。人工图标在**首页方块墙、设备管理列表、详情弹窗**里都优先生效。
+  调色板由自动识别那套图标去重生成，保证人工挑的图标和自动图标风格一致。
+- **桌面启动器：状态面板常驻**。菜单顶部固定显示服务状态 / PID / 已运行时长 / 本机与局域网地址 /
+  版本·平台·网段 / 台账统计 / 定时重扫倒计时 / 当前任务，等待输入时每 3 秒**原地重画**
+  （光标归位重写 + 清到屏幕末尾，不是 `clear`，所以不闪屏），不必再手动按 5 查状态。
+- **桌面启动器：所有动作执行完都回到菜单**。每个分支（含输错序号）统一走倒计时，
+  倒数 6 秒自动回菜单、按回车立刻回；除「0) 退出」外没有任何路径会 `exit`。
+- **`PRD.md`**：产品需求文档（背景与竞品缺口、用户画像、19 条需求及优先级、逐条验收标准、
+  非功能需求、数据模型、关键取舍、成功指标、风险、路线图）。
+- **`tests/launcher.test.sh`**：桌面启动脚本回归测试 12 项。
+
+### 修复
+
+- **启动器状态面板不刷新的假象**：`read -t` 超时在 macOS 自带 bash 3.2 上**返回 1**，
+  而不是常见的 `128+SIGALRM=142`，和 EOF 的退出码完全一样。原先按退出码判断超时，
+  于是每次空闲超时都被当成 EOF 直接退出菜单。改用「耗时是否等满超时秒数」区分。
+- **`./tests/run.sh` 在最小环境里报 `node: command not found`**：Finder 双击的终端与 cron
+  的 PATH 不含 Homebrew，看起来像测试失败其实是环境问题。脚本里补了 PATH。
+- **`tests/docker_smoke.sh` 在装了 buildx 后失败**：`docker build` 转走 BuildKit 并要写
+  `~/.docker/buildx`，受限环境报 `operation not permitted`。改为把 buildx 状态放进工作区。
+
+### 安全
+
+- **Docker Hub 令牌不再明文落盘**：`docker login` 默认把凭据以 base64（等于明文）
+  写进 `~/.docker/config.json`，任何能读用户目录的进程都能拿到这个可推送镜像的令牌。
+  现在用 `docker-credential-osxkeychain` 存进 macOS 钥匙串，配置文件里只剩
+  `"credsStore": "osxkeychain"`。README 补了迁移步骤与那个反直觉的坑：
+  用了钥匙串后 `docker info` 的 `Username:` 行会消失，不能再用它判断登录状态。
+
+### 测试
+
+`./tests/run.sh` 共 **9 套 138 项**（5 套离线 UI 126 项 + 3 套联调 + 1 套启动脚本 12 项），
+另有 `tests/docker_smoke.sh` 容器冒烟测试 27 项。
+
 ## [1.1.0] — 2026-09-28
 
 从"能扫"做到"能管、能部署"。本次加入设备台账、定时重扫、容器化与回归测试。
@@ -17,27 +61,12 @@
   配置落 `data/auto.json`，服务重启后按原节奏续排期。
 - **侧边栏导航 + hash 路由**：首页 / 设备扫描 / 历史记录 / 设备管理 / 关于与说明。
 - **批量删除**：设备管理支持行内删除、多选批量删除、一键清除离线 / 忽略 / 全部。
-- **设备图标可人工指定**：编辑弹窗里提供 emoji 调色板（点选，也可粘贴任意 emoji），
-  留空则按设备类型自动识别。人工图标在首页方块墙、设备管理列表、详情弹窗里都优先生效。
 - **台账导出**：`/api/devices/export?format=csv|json`。
 - **桌面启动器**：`desktop/局域网扫描服务.command` 单文件搞定启动 / 停止 / 重启 / 打开页面 / 看日志。
-  菜单顶部**常驻状态面板**（服务状态 / PID / 运行时长 / 网段 / 台账 / 下次重扫倒计时），
-  等待输入时每 3 秒原地重画、不闪屏；**每个动作执行完都自动回到菜单**（倒数 6 秒自动回，回车立刻回）。
 - **容器化部署**：`Dockerfile` + `docker-compose.yml`（**必须 host 网络**，否则 ARP 扫不到局域网）。
-- **Docker Hub 公开镜像**：`hzjackboy/lan-device-scanner`，同时提供 `linux/amd64` 与 `linux/arm64`
-  （NAS / x86 服务器 / 树莓派都能直接拉）。配套 `docker-push.sh` 一条命令构建并推送多架构镜像，
-  脚本会自动探测本地代理、校验登录、选对 buildx 构建器。
-- **测试**：`./tests/run.sh` 共 9 套 138 项检查（5 套离线 UI 126 项 + 3 套联调 + 1 套启动脚本 12 项），
+- **测试**：`./tests/run.sh` 共 8 套 113 项检查（5 套离线 UI + 3 套联调），
   另有 `tests/docker_smoke.sh` 容器冒烟测试 27 项。
 - **`AGENTS.md`**：压缩后的项目上下文，新会话自动加载。
-
-### 安全
-
-- **Docker Hub 令牌不再明文落盘**：`docker login` 默认把凭据以 base64（等于明文）
-  写进 `~/.docker/config.json`，任何能读用户目录的进程都能拿到这个可推送镜像的令牌。
-  现在用 `docker-credential-osxkeychain` 存进 macOS 钥匙串，配置文件里只剩
-  `"credsStore": "osxkeychain"`。README 补了迁移步骤与那个反直觉的坑：
-  用了钥匙串后 `docker info` 的 `Username:` 行会消失，不能再用它判断登录状态。
 
 ### 修复
 
@@ -72,5 +101,6 @@ macOS 上（Docker Desktop 与 colima 都一样）host 网络仍只是虚拟机�
 - OUI 厂商库：内置常用表 + IEEE 全量 `oui.csv`（4 万条，`python3 update_oui.py` 获取）。
 - 实时 Web 界面：SSE 推送扫描进度，设备逐台出现，含网段分布热力图、CSV/JSON 导出。
 
+[1.2.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.2.0
 [1.1.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.1.0
 [1.0.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.0.0

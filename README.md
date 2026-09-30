@@ -1,6 +1,6 @@
 # 局域网设备扫描服务
 
-**当前版本 v1.1.0** · [更新日志](CHANGELOG.md)
+**当前版本 v1.2.0** · [更新日志](CHANGELOG.md)
 
 一个能直接跑的局域网（LAN）设备扫描器：后端是 Python 标准库写的 HTTP 服务，
 前端是一个实时刷新的 Web 页面。不需要 root，不需要装任何第三方包。
@@ -150,7 +150,7 @@ run.sh             启动脚本
   服务状态 : ● 运行中（PID 11292，已运行 8 分 21 秒）
   本机访问 : http://127.0.0.1:8765
   局域网   : http://10.0.0.50:8765
-  版本信息 : v1.1.0 · darwin · 网段 10.0.0.0/24 · ping 可用
+  版本信息 : v1.2.0 · darwin · 网段 10.0.0.0/24 · ping 可用
   设备台账 : 共 73 台（在线 41 / 掉线 32）
   定时重扫 : 已开启，每 60 分钟一次 · 下次约 59 分钟后（已跑 51 次）
   当前任务 : 空闲
@@ -239,7 +239,7 @@ docker compose down       # 停掉
 仓库里带了 `docker-push.sh`，一条命令构建 amd64 + arm64 并推送：
 
 ```bash
-./docker-push.sh hzjackboy            # 推 1.1.0 和 latest
+./docker-push.sh hzjackboy            # 推 1.2.0 和 latest
 ./docker-push.sh hzjackboy 1.2.0      # 只推指定标签
 ```
 

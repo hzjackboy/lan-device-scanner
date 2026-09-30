@@ -5,12 +5,12 @@
 
 ## 当前状态
 
-- **版本**：`v1.1.0`。发版要同步改四处：`server.py` 的 `VERSION`、`static/index.html` 两处默认值、
+- **版本**：`v1.2.0`。发版要同步改四处：`server.py` 的 `VERSION`、`static/index.html` 两处默认值、
   `tests/ui_sidebar.test.js` 的桩数据、`Dockerfile` 的 `image.version`；再补 `CHANGELOG.md` 并打 tag
 - **服务**：由桌面脚本 `~/Desktop/局域网扫描服务.command` 管理，端口 8765
   （日志 `data/server.log`，进程号 `data/server.pid`）
 - **镜像**：Docker Hub 公开镜像 `hzjackboy/lan-device-scanner`（amd64 + arm64 多架构），
-  发版用 `./docker-push.sh hzjackboy 1.1.0 latest` 一条命令推
+  发版用 `./docker-push.sh hzjackboy 1.2.0 latest` 一条命令推
 - **仓库**：私有 `hzjackboy/lan-device-scanner`，本机 `gh` 已登录该账号
 - **数据**：`data/devices.json`（设备台账，含真实 MAC/IP/主机名）、`data/auto.json`（定时重扫配置）
   —— 都在 `.gitignore` 里，**绝不要提交**
