@@ -105,7 +105,7 @@ fi
 
 step "2/7 镜像内容自检（不该带 data/、desktop/、tests/）"
 LIST="$(docker run --rm --entrypoint sh "${IMG}" -c 'ls -A /app')"
-for want in server.py scanner.py mdns.py netbios.py oui.py update_oui.py static data; do
+for want in server.py scanner.py auth.py mdns.py netbios.py oui.py update_oui.py static data; do
     printf '%s' "${LIST}" | grep -qx "${want}" && ok "含 ${want}" || bad "缺 ${want}"
 done
 for unwanted in desktop tests oui.csv; do

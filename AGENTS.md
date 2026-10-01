@@ -15,7 +15,7 @@
   历史曾被 `git filter-repo` 重写过（清理真实设备信息），2026-09-30 删库重建过以获得干净的对象存储
 - **数据**：`data/devices.json`（设备台账，含真实 MAC/IP/主机名）、`data/auto.json`（定时重扫配置）
   —— 都在 `.gitignore` 里，**绝不要提交**
-- **测试**：`./tests/run.sh`（6 套离线 UI/静态自检 + 1 套认证单元 + 4 套联调 + 1 套启动脚本，共 12 套；服务在跑时自动附带联调）
+- **测试**：`./tests/run.sh`（7 套离线 UI/静态自检 + 1 套认证单元 + 4 套联调 + 1 套启动脚本，共 13 套；服务在跑时自动附带联调）
 - **文档地图**：`PRD.md`（产品需求：目标 / 用户画像 / 19 条需求优先级 / 逐条验收标准 / 路线图）、
   `README.md`（安装使用与排错）、`DOCKERHUB.md`（Docker Hub 仓库页的 Overview 正文，
   由 `docker-push.sh` 推送上去）、`CHANGELOG.md`（版本变更）、本文件（架构与踩坑）
@@ -139,7 +139,16 @@
 10. **`data/local_token` 里存的是 JSON，不是裸令牌**：读的时候必须解析后取值。
     第一版直接拿原文当令牌，首次启动碰巧对（刚生成的就是它），重启后读到的却是整段
     JSON 文本，现象是「刚装好能用，重启一次同机命令行工具全部 401」。
-11. **`app.js` 里别起和已有函数同名的顶层函数**：同名的会被后声明的那个覆盖掉，
+11. **加模块别忘了同步 Dockerfile 的 COPY**：`auth.py` 加进来时漏了，镜像照样构建成功，
+    `docker run` 立刻崩在 `import auth` —— 构建不报错，很容易一路推到 Docker Hub 才发现。
+    现在有 `tests/packaging.test.js`（9 项，不需要 Docker）静态检查：所有被引用的本地模块
+    都在 COPY 里、`.dockerignore` 没把它们排掉、`data/` 被排除、compose 用 host 网络、
+    版本号一致、HEALTHCHECK 打的接口真实存在。
+12. **`docker build` 静默失败会让人测到旧镜像**：本机装了 buildx 插件，不设
+    `BUILDX_CONFIG=${PWD}/.buildx` 时构建会因写 `~/.docker/buildx` 权限不足而失败。
+    要是再把输出重定向掉（`>/dev/null 2>&1`），就会拿着**上一次的旧镜像**去验证，
+    得出「改了没生效」的错误结论。跑构建别吞输出。
+13. **`app.js` 里别起和已有函数同名的顶层函数**：同名的会被后声明的那个覆盖掉，
     调用点静默用错实现。踩过一次——给用户表写的 `fmtTime` 被历史表格的 `fmtTime` 顶掉，
     空值没兜住，页面显示 1970 年的 `08:00:00`。`tests/ui_lint.test.js` 现在会检查
     重名函数、`$('id')` 是否真实存在、只读模式选择器是否命中、视图与侧边栏入口是否配套。
@@ -166,6 +175,7 @@
 ./tests/run.sh                            # 跑全部测试（含启动脚本那套）
 ./tests/auth_unit.py                      # 只跑认证单元测试（72 项，不需要服务）
 ./tests/ui_lint.test.js                   # 前端静态自检：重名函数 / id / 表格列（24 项）
+./tests/packaging.test.js                # 打包自检：Dockerfile COPY / dockerignore（9 项）
 ./tests/launcher.test.sh                  # 只跑桌面启动脚本测试（12 项）
 ./tests/docker_smoke.sh                   # 容器冒烟测试（27 项）
 ```

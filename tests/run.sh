@@ -34,6 +34,16 @@ else
 fi
 
 echo
+echo "--- 打包自检（不依赖服务/Docker）---"
+printf '%-28s ' "packaging.test.js"
+if node tests/packaging.test.js >/tmp/.t.log 2>&1; then
+    n=$(grep -c '✅' /tmp/.t.log)
+    echo "✅ 通过（$n 项）"; pass=$((pass+1))
+else
+    echo "❌ 失败"; sed 's/^/    /' /tmp/.t.log | grep '❌' | head -5; fail=$((fail+1))
+fi
+
+echo
 echo "--- 认证单元测试（不依赖服务）---"
 printf '%-28s ' "auth_unit.py"
 if python3 tests/auth_unit.py >/tmp/.t.log 2>&1; then

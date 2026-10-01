@@ -23,7 +23,7 @@ ENV TZ=Asia/Shanghai \
 RUN cp "/usr/share/zoneinfo/${TZ}" /etc/localtime && echo "${TZ}" > /etc/timezone
 
 WORKDIR /app
-COPY server.py scanner.py mdns.py netbios.py oui.py update_oui.py ./
+COPY server.py scanner.py auth.py mdns.py netbios.py oui.py update_oui.py ./
 COPY static/ ./static/
 RUN mkdir -p /app/data
 
