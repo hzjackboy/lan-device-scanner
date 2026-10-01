@@ -73,7 +73,8 @@ docker restart lan-device-scanner
   <ExtraSearchTerms>lan scan arp mdns network devices inventory 局域网 扫描 设备 台账</ExtraSearchTerms>
   <Requires>安装时网络类型必须选 Host（bridge 下 ARP 扫不到局域网）</Requires>
 
-  <Changes>v1.4.0：新增登录与访问控制——默认账号 admin / admin，首次登录强制修改密码；新增用户管理页与只读（viewer）角色，列表带最近登录 IP；上传前修复了 auth.py 未打进镜像、健康检查打到需登录接口两个问题。
+  <Changes>v1.4.1：修复侧边栏收起后图标不对齐（间距与内边距残留把图标推离中轴，折叠按钮还被挤出轨道裁掉，收起后只能靠 Ctrl+B 展开）；顺带修掉窄屏抽屉里不显示用户名的问题。
+v1.4.0：新增登录与访问控制——默认账号 admin / admin，首次登录强制修改密码；新增用户管理页与只读（viewer）角色，列表带最近登录 IP；上传前修复了 auth.py 未打进镜像、健康检查打到需登录接口两个问题。
 v1.3.0：设备总览支持列表 / 大 / 中 / 小四种展示密度；按常见分辨率适配；设备图标可人工指定。</Changes>
   <Date>2026-10-01</Date>
 

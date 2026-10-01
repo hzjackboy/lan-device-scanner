@@ -4,9 +4,9 @@
 # 用法：
 #   ./docker-push.sh <dockerhub用户名> [标签...]
 #
-#   ./docker-push.sh hzjackboy                # 默认推 1.4.0 和 latest
-#   ./docker-push.sh hzjackboy 1.4.0          # 只推 1.4.0
-#   ./docker-push.sh hzjackboy 1.4.0 latest   # 显式指定多个标签
+#   ./docker-push.sh hzjackboy                # 默认推 1.4.1 和 latest
+#   ./docker-push.sh hzjackboy 1.4.1          # 只推 1.4.1
+#   ./docker-push.sh hzjackboy 1.4.1 latest   # 显式指定多个标签
 #
 # 前置：已 docker login（见下面「代理」一节）、docker/colima 正在运行。
 #
@@ -27,7 +27,7 @@ USER_NAME="${1:-}"
 
 if [ -z "${USER_NAME}" ]; then
   echo "用法：./docker-push.sh <dockerhub用户名> [标签...]" >&2
-  echo "例如：./docker-push.sh hzjackboy 1.4.0 latest" >&2
+  echo "例如：./docker-push.sh hzjackboy 1.4.1 latest" >&2
   exit 1
 fi
 
@@ -35,7 +35,7 @@ REPO="${USER_NAME}/lan-device-scanner"
 if [ "$#" -gt 0 ]; then
   TAGS=("$@")
 else
-  TAGS=("1.4.0" "latest")
+  TAGS=("1.4.1" "latest")
 fi
 
 # 以脚本所在目录为项目根目录（构建上下文、DOCKERHUB.md 都按它找），

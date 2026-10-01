@@ -5,12 +5,14 @@
 
 ## 当前状态
 
-- **版本**：`v1.4.0`。发版要同步改四处：`server.py` 的 `VERSION`、`static/index.html` 两处默认值、
-  `tests/ui_sidebar.test.js` 的桩数据、`Dockerfile` 的 `image.version`；再补 `CHANGELOG.md` 并打 tag
+- **版本**：`v1.4.1`。发版要同步改：`server.py` 的 `VERSION`、`static/index.html` 三处默认值、
+  `tests/ui_sidebar.test.js` 两处桩数据、`Dockerfile` 的 `image.version`、`docker-push.sh` 的默认标签、
+  `README.md`、`PRD.md`、`templates/lan-device-scanner.xml` 的 `<Changes>` 与 `<Date>`，
+  再补 `CHANGELOG.md` 并打 tag（`tests/packaging.test.js` 会校验版本号是否一致）
 - **服务**：由桌面脚本 `~/Desktop/局域网扫描服务.command` 管理，端口 8765
   （日志 `data/server.log`，进程号 `data/server.pid`）
 - **镜像**：Docker Hub 公开镜像 `hzjackboy/lan-device-scanner`（amd64 + arm64 多架构），
-  发版用 `./docker-push.sh hzjackboy 1.4.0 latest` 一条命令推
+  发版用 `./docker-push.sh hzjackboy 1.4.1 latest` 一条命令推
 - **仓库**：**公开** `hzjackboy/lan-device-scanner`（MIT 许可），本机 `gh` 已登录该账号。
   历史曾被 `git filter-repo` 重写过（清理真实设备信息），2026-09-30 删库重建过以获得干净的对象存储
 - **数据**：`data/devices.json`（设备台账，含真实 MAC/IP/主机名）、`data/auto.json`（定时重扫配置）
