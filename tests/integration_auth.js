@@ -103,6 +103,14 @@ async function main() {
   check('新账号能登录', login.status === 200);
   check('新账号被标记必须改初始密码', loginBody.must_change_password === true);
 
+  // 「最近登录 IP」：新账号首次登录前应为空，登录后应记下来源的 IP
+  const usersBefore = await json(await req('GET', '/api/users', { token: TOKEN }));
+  const meBefore = (usersBefore.users || []).find((u) => u.username === username);
+  check('用户列表带 last_login_ip 字段', !!meBefore && 'last_login_ip' in meBefore);
+  check('刚登录的账号记录了来源 IP', !!meBefore && meBefore.last_login_ip === '127.0.0.1');
+  check('未登录过的账号该字段为空',
+    (usersBefore.users || []).every((u) => u.last_login_ip !== undefined));
+
   const blocked = await req('GET', '/api/devices');
   const blockedBody = await json(blocked);
   check('没改初始密码前访问业务接口 → 403', blocked.status === 403);

@@ -64,11 +64,17 @@ def main():
         check("对外表示里没有裸 password 键", "password" not in admin)
         check("对外表示里不含密码哈希",
               "scrypt" not in json.dumps(admin) and "$" not in json.dumps(admin))
+        check("对外表示里有 last_login_ip 字段", "last_login_ip" in admin)
 
         # ---------------- 登录 ----------------
         rec, why = st.authenticate("admin", "admin", "10.0.0.1")
         check("admin/admin 能登录", rec is not None and why is None)
         check("登录后记录 last_login", bool(rec and rec.get("last_login")))
+        check("登录后记录来源 IP", rec and rec.get("last_login_ip") == "10.0.0.1")
+        # 换个来源再登一次，应当被刷新（否则界面永远显示第一次那个地址）
+        rec2, _ = st.authenticate("admin", "admin", "10.0.0.42")
+        check("再登录会刷新来源 IP", rec2 and rec2.get("last_login_ip") == "10.0.0.42")
+        check("最近登录 IP 对外可见", st.get_user("admin").get("last_login_ip") == "10.0.0.42")
         bad, why2 = st.authenticate("admin", "nope", "10.0.0.1")
         check("错误密码登录失败", bad is None)
         ghost, why3 = st.authenticate("nosuch", "whatever", "10.0.0.1")
@@ -122,6 +128,7 @@ def main():
         u, reason = st5.create_user("alice", "Alice-Pass1", "viewer")
         check("能创建 viewer", u is not None and u["role"] == "viewer")
         check("新用户默认要求改初始密码", u and u["must_change_password"] is True)
+        check("新账号的最近登录 IP 初始为空", u and u.get("last_login_ip") is None)
         check("重复用户名被拒", st5.create_user("alice", "Alice-Pass1", "viewer")[1] is not None)
         check("非法用户名被拒", st5.create_user("a b/c", "GoodPass-1", "viewer")[1] is not None)
         check("非法角色被拒", st5.create_user("bob", "GoodPass-1", "root")[1] is not None)

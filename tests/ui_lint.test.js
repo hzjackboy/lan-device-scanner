@@ -57,7 +57,27 @@ for (const id of ['auth-gate', 'login-form', 'login-user', 'login-pass', 'login-
   check(`认证/用户管理所需元素存在：#${id}`, HTML.includes(`id="${id}"`));
 }
 
-// ---------- 6. 前端不能出现明文凭据 ----------
+// ---------- 6. 用户表的列要对得上 ----------
+// 表头 <th> 数量必须等于 renderUsers 里渲染的 <td> 数量，
+// 否则整个表格会错位（而且看起来「只是有点歪」，不容易发现）。
+function countMatches(text, re) { return [...text.matchAll(re)].length; }
+
+const userTableHead = HTML.slice(HTML.indexOf('id="user-table"'));
+// 注意用 /<th[\s>]/：直接的 /<th/ 会把 <thead> 也算进去
+const thCount = countMatches(userTableHead.slice(0, userTableHead.indexOf('</thead>')), /<th[\s>]/g);
+
+const renderFn = JS.slice(JS.indexOf('function renderUsers()'));
+const tmpl = renderFn.slice(renderFn.indexOf('tr.innerHTML = `') , renderFn.indexOf('`;', renderFn.indexOf('tr.innerHTML = `')));
+const tdCount = countMatches(tmpl, /<td/g);
+
+check(`用户表表头 ${thCount} 列 = 渲染 ${tdCount} 个单元格`, thCount === tdCount && thCount > 0);
+
+// 表格里按类名收起的列，类名必须在表头里真实存在（写错就会永远收不掉）
+const colSels = [...CSS.matchAll(/#user-table\s+\.(col-[a-z-]+)/g)].map((m) => m[1]);
+const colMissing = colSels.filter((cls) => !userTableHead.includes(`class="${cls}"`) && !userTableHead.includes(cls));
+check(`窄屏收起的 ${colSels.length} 个列类名都存在（${colSels.join(', ')}）`, colMissing.length === 0);
+
+// ---------- 7. 前端不能出现明文凭据 ----------
 check('前端代码里没有硬编码密码', !/password\s*[:=]\s*['"][^'"]+['"]/i.test(JS));
 check('前端只有默认账号的提示文案，没有默认密码逻辑',
   !/localStorage.*password|sessionStorage.*password/i.test(JS));

@@ -169,6 +169,7 @@ class AuthStore:
             "created_at": time.time(),
             "updated_at": time.time(),
             "last_login": None,
+            "last_login_ip": None,
             "password_changed_at": None,
         }
         self._save()
@@ -275,6 +276,10 @@ class AuthStore:
                 self._note_failure(username, ip)
                 return None, "bad_credentials"
             rec["last_login"] = time.time()
+            # 记的是「上次成功登录的来源」，不是每次请求的 IP——
+            # 会话能用 7 天，按请求记的话这个值会变成最后一台设备的地址，
+            # 跟列名「最近登录 IP」对不上。
+            rec["last_login_ip"] = ip or None
             self._save()
             self._clear_failures(username, ip)
             return dict(rec), None
@@ -382,6 +387,7 @@ class AuthStore:
             "created_at": rec.get("created_at"),
             "updated_at": rec.get("updated_at"),
             "last_login": rec.get("last_login"),
+            "last_login_ip": rec.get("last_login_ip"),
             "password_changed_at": rec.get("password_changed_at"),
         }
 
@@ -422,7 +428,7 @@ class AuthStore:
                 "password": hash_password(password),
                 "must_change_password": bool(must_change),
                 "created_at": now, "updated_at": now,
-                "last_login": None, "password_changed_at": None,
+                "last_login": None, "last_login_ip": None, "password_changed_at": None,
             }
             self._save()
             return self._public(self._users[username]), None

@@ -1358,10 +1358,17 @@ button.ghost.danger:hover:not(:disabled) { border-color: var(--red); color: #fec
   #view-users .form-grid { grid-template-columns: 1fr; }
   #user-dialog .dialog-body { min-width: auto; }
 }
+/* 窄屏按「信息价值」从低到高依次收起这几列。
+   这里刻意用类名而不是 nth-child：加列/调顺序时 nth-child 会静默指到别的列上，
+   页面看着正常、实际收错了东西。 */
+@media (max-width: 900px) {
+  #user-table .col-login-ip { display: none; }
+}
 @media (max-width: 720px) {
-  #user-table th:nth-child(5), #user-table td:nth-child(5) { display: none; }
+  #user-table .col-created { display: none; }
 }
 @media (max-width: 560px) {
-  #user-table th:nth-child(4), #user-table td:nth-child(4) { display: none; }
+  #user-table .col-last-login { display: none; }
   .auth-card { padding: 20px 18px; }
 }
+#user-table .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }

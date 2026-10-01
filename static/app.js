@@ -333,8 +333,9 @@ function renderUsers() {
       <td>${esc(user.username)}${me ? ' <span class="muted">(我)</span>' : ''}</td>
       <td><span class="role-tag ${esc(user.role)}">${labelRole(user.role)}</span></td>
       <td><span class="state-tag ${mustChange ? 'warn' : ''}">${mustChange ? '待改初始密码' : '正常'}</span></td>
-      <td class="muted">${fmtStamp(user.last_login)}</td>
-      <td class="muted">${fmtStamp(user.created_at)}</td>
+      <td class="muted col-last-login">${fmtStamp(user.last_login)}</td>
+      <td class="muted col-created">${fmtStamp(user.created_at)}</td>
+      <td class="mono col-login-ip">${esc(user.last_login_ip || '—')}</td>
       <td class="col-actions">
         <div class="row-actions">
           <button data-act="reset" data-user="${esc(user.username)}">重置密码</button>

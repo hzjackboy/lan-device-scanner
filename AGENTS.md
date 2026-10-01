@@ -78,6 +78,9 @@
    （`/api/users` 连看都不给）。加接口时记得想清楚它属于哪一档，别默认放行。
    `data/` 下的三个新文件（`users.json` / `sessions.json` / `local_token`）都在
    `.gitignore` 里，**绝不要提交**；它们都是 0600。
+   用户记录里的 `last_login_ip` 在**登录成功时**写入（不是每次请求），语义是「上次从哪登的」。
+   用户表窄屏收起那几列用**类名**（`.col-login-ip` 等）而不是 `nth-child`——加列/换顺序时
+   `nth-child` 会静默指到别的列上，`tests/ui_lint.test.js` 会检查表头列数与渲染单元格数一致。
 
 ## 已知坑（都踩过）
 
@@ -161,8 +164,8 @@
 ./run.sh                                  # 启动服务（或桌面脚本）
 ~/Desktop/局域网扫描服务.command status    # 状态；start/stop/restart/open/toggle/log/help
 ./tests/run.sh                            # 跑全部测试（含启动脚本那套）
-./tests/auth_unit.py                       # 只跑认证单元测试（67 项，不需要服务）
-./tests/ui_lint.test.js                   # 前端静态自检：重名函数 / id 是否存在（22 项）
+./tests/auth_unit.py                      # 只跑认证单元测试（72 项，不需要服务）
+./tests/ui_lint.test.js                   # 前端静态自检：重名函数 / id / 表格列（24 项）
 ./tests/launcher.test.sh                  # 只跑桌面启动脚本测试（12 项）
 ./tests/docker_smoke.sh                   # 容器冒烟测试（27 项）
 ```
