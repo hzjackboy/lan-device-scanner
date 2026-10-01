@@ -384,6 +384,74 @@ Docker 默认的 bridge 网络里容器被 NAT，`/proc/net/arp` 只有 docker �
 
 > 容器里没有桌面启动脚本（那是给 macOS 用的），但定时重扫等功能照常：调度在服务端进程里。
 
+### Unraid 7
+
+Unraid 是 Linux 宿主机，**host 网络下容器直接进宿主的网络命名空间**，ARP 能扫到真实局域网，
+是跑这个工具最合适的环境之一（软路由 / NAS 同理）。
+
+#### 方式一：WebUI 添加容器（推荐）
+
+**Docker → Add Container**，按下表填：
+
+| 字段 | 填什么 |
+| --- | --- |
+| Name | `lan-device-scanner` |
+| Repository | `hzjackboy/lan-device-scanner:latest` |
+| Network Type | **`Host`** ← 关键，别用 Bridge |
+| Console shell command | `sh` |
+| WebUI | `http://[IP]:[PORT:8765]/` |
+
+**Add another Path, Port, Variable, Label or Device** → 加两项：
+
+| 类型 | 名称 | 容器路径 / 键 | 宿主机值 |
+| --- | --- | --- | --- |
+| Path | 台账目录 | `/app/data` | `/mnt/user/appdata/lan-device-scanner` |
+| Variable | 时区 | `TZ` | `Asia/Shanghai` |
+
+> **不要加 Port 映射**：host 网络下端口直接占用宿主机，加映射是无效的（Unraid 会忽略）。
+> 容器起来后就是 `http://<你的 Unraid IP>:8765`。
+
+也可以把仓库里的模板导入：`unraid/lan-device-scanner.xml`
+复制到 `/boot/config/plugins/dockerMan/templates-user/`，再在 **Docker → Add Container**
+的 Template 下拉里选它。
+
+#### 方式二：SSH 里直接 docker run
+
+```bash
+docker run -d \
+  --name lan-device-scanner \
+  --network host \
+  --restart unless-stopped \
+  -e TZ=Asia/Shanghai \
+  -v /mnt/user/appdata/lan-device-scanner:/app/data \
+  hzjackboy/lan-device-scanner:latest
+```
+
+#### 起来之后
+
+```bash
+docker logs -f lan-device-scanner          # 看日志，会打印局域网访问地址
+docker exec lan-device-scanner \
+  python3 update_oui.py --out /app/data/oui.csv   # 可选：拉 IEEE 全量厂商表，识别率更高
+docker restart lan-device-scanner
+```
+
+浏览器打开 `http://<你的 Unraid IP>:8765`，选网段 → 开始扫描。
+
+**几个 Unraid 上容易踩的点**
+
+- **端口冲突**：host 网络下占用宿主 8765。Unraid 的 WebGUI 用 80/443，一般不冲突；
+  真被占了**不能**只写个端口了事——镜像的 `CMD` 会被整体替换掉，得在 Post Arguments 里
+  写完整命令：`python3 server.py --host 0.0.0.0 --port 8899`
+- **`/mnt/user/appdata` 放在缓存池上**更合适：台账每次扫描都会写盘，放机械盘阵列会让阵列频繁唤醒。
+  想指定具体池就写 `/mnt/<池名>/appdata/lan-device-scanner`。
+- **Unraid 的 Docker 页面「端口」栏对 host 网络不生效**，别指望在那里改端口。
+- **反向代理**：容器本身没有认证，任何能访问该端口的人都能触发扫描。
+  要暴露给非可信网络，前面套一层带认证的反代（Nginx Proxy Manager / SWAG），
+  并且**反代必须能转发 SSE**（`/api/scan/<id>/events`），否则页面不会实时刷新——
+  记得关掉响应缓冲（Nginx 里 `proxy_buffering off;`）。
+- **不要开 Privileged**：默认能力集已含 `NET_RAW`，ping 够用；只有在宿主做过能力收紧时才需要补。
+
 ## 使用方法
 
 ```bash

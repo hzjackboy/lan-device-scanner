@@ -39,11 +39,18 @@ Docker 默认的 bridge 网络里容器被 NAT，容器的 `/proc/net/arp` 里�
 | 部署位置 | ARP 发现 | 说明 |
 | --- | --- | --- |
 | Linux 主机（`--network host`） | ✅ | 推荐，能拿到真实 MAC |
+| **Unraid 7**（Network Type 选 `Host`） | ✅ | 最合适的环境之一，见下方「Unraid」 |
 | 软路由 / NAS / 群晖（host 网络） | ✅ | 长期挂着跑最合适 |
 | K8s（`hostNetwork: true`） | ✅ | — |
 | **macOS 上的 Docker（含 colima）** | ❌ | host 网络也只是虚拟机内网，实测容器看到的是 `192.168.x.x` 而不是宿主机的 `10.0.0.x`；**macOS 上请在宿主机直接跑 Python** |
 
 用了 host 网络后不能再写 `-p` 端口映射，容器直接占用宿主机的 8765。
+
+**Unraid 7**：Docker → Add Container，Repository 填 `hzjackboy/lan-device-scanner:latest`，
+**Network Type 必须选 `Host`**（别用 Bridge），加一个 Path `/app/data` → `/mnt/user/appdata/lan-device-scanner`
+和一个 Variable `TZ=Asia/Shanghai` 即可，**不要加端口映射**。
+仓库里带了现成的模板 `unraid/lan-device-scanner.xml`，放进
+`/boot/config/plugins/dockerMan/templates-user/` 就能在 Template 下拉里选到。
 
 ---
 
