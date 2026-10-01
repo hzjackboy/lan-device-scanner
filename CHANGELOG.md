@@ -50,6 +50,9 @@
 - **`auth.py` 没被 COPY 进镜像**：加了模块却忘了同步 `Dockerfile`，镜像照样构建成功，
   但 `docker run` 立刻崩在 `import auth`。构建不报错，很容易一路推到 Docker Hub 才发现。
   现在 `tests/packaging.test.js` 会静态检查「被引用的本地模块是否都在 COPY 里」等 9 项。
+- **HEALTHCHECK 打的是需要登录的接口**：加了认证后 `/api/status` 要登录，健康检查一直 401，
+  容器永远停在 `starting` / 变成 `unhealthy`。改打免登录的 `/api/auth/state`。
+  静态自检里也加了这条：健康检查的路径必须落在 `PUBLIC_API` 白名单内。
 
 ### 变更
 

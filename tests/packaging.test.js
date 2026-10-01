@@ -77,11 +77,18 @@ check(`Dockerfile 的 image.version（${label}）与 server.py VERSION（${versi
 // ---------- 6. HEALTHCHECK 打的是真实存在的接口 ----------
 const health = (dockerfile.match(/HEALTHCHECK[\s\S]*?(?=\n[A-Z]|\n$)/) || [''])[0];
 if (health) {
-      // 正则括号从「/」之后开始，抓到的是 "api/status"（不含前导斜杠），
-    // 比对时要自己补回 "/"，否则永远匹配不上源码里的 "/api/status"。
-    const paths = [...health.matchAll(/\/(api\/[a-z<>\-_]+)/g)].map((m) => m[1]);
-    const bad = paths.filter((p) => !serverSrc.includes(`"/${p}"`) && !serverSrc.includes(`'/${p}'`));
-  check(`HEALTHCHECK 打的接口在 server.py 里真实存在（${paths.join(', ') || '未解析到'}）`, bad.length === 0);
+    // 正则括号从「/」之后开始，抓到的是 "api/status"（不含前导斜杠），比对时补回 "/"。
+    const paths = [...health.matchAll(/\/(api\/[a-z/<>\-_]+)/g)].map((m) => m[1]);
+
+    const missing = paths.filter((p) => !serverSrc.includes(`"/${p}"`));
+    check(`HEALTHCHECK 打的是真实存在的接口（${paths.join(', ') || '未解析到'}）`, missing.length === 0);
+
+    // 更进一步：健康检查必须打**免登录**接口。
+    // 加认证时 HEALTHCHECK 还指着 /api/status，容器就永远是 unhealthy——
+    // 而且 docker build 完全不报错，只有跑起来才发现。
+    const publicApi = (serverSrc.match(/PUBLIC_API\s*=\s*\{([^}]*)\}/) || [])[1] || '';
+    const notPublic = paths.filter((p) => !publicApi.includes(`"/${p}"`));
+    check(`HEALTHCHECK 打的接口不需要登录（白名单：${publicApi.trim() || '未解析到'}）`, notPublic.length === 0);
 }
 
 let failed = 0;

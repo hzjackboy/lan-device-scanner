@@ -141,9 +141,10 @@
     JSON 文本，现象是「刚装好能用，重启一次同机命令行工具全部 401」。
 11. **加模块别忘了同步 Dockerfile 的 COPY**：`auth.py` 加进来时漏了，镜像照样构建成功，
     `docker run` 立刻崩在 `import auth` —— 构建不报错，很容易一路推到 Docker Hub 才发现。
-    现在有 `tests/packaging.test.js`（9 项，不需要 Docker）静态检查：所有被引用的本地模块
+    现在有 `tests/packaging.test.js`（10 项，不需要 Docker）静态检查：所有被引用的本地模块
     都在 COPY 里、`.dockerignore` 没把它们排掉、`data/` 被排除、compose 用 host 网络、
-    版本号一致、HEALTHCHECK 打的接口真实存在。
+    版本号一致、**HEALTHCHECK 必须打免登录接口**（`/api/status` 加了认证后要登录，
+    拿它做健康检查会让容器永远 unhealthy——`docker build` 完全不报错）。
 12. **`docker build` 静默失败会让人测到旧镜像**：本机装了 buildx 插件，不设
     `BUILDX_CONFIG=${PWD}/.buildx` 时构建会因写 `~/.docker/buildx` 权限不足而失败。
     要是再把输出重定向掉（`>/dev/null 2>&1`），就会拿着**上一次的旧镜像**去验证，
@@ -175,7 +176,7 @@
 ./tests/run.sh                            # 跑全部测试（含启动脚本那套）
 ./tests/auth_unit.py                      # 只跑认证单元测试（72 项，不需要服务）
 ./tests/ui_lint.test.js                   # 前端静态自检：重名函数 / id / 表格列（24 项）
-./tests/packaging.test.js                # 打包自检：Dockerfile COPY / dockerignore（9 项）
+./tests/packaging.test.js                # 打包自检：COPY / dockerignore / 健康检查（10 项）
 ./tests/launcher.test.sh                  # 只跑桌面启动脚本测试（12 项）
 ./tests/docker_smoke.sh                   # 容器冒烟测试（27 项）
 ```

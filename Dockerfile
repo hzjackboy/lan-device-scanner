@@ -33,9 +33,11 @@ RUN mkdir -p /app/data
 
 EXPOSE 8765
 
-# 用 /api/status 做健康检查（镜像里没有 curl，用标准库）
+# 用 /api/auth/state 做健康检查：它是**免登录**接口。
+# 别用 /api/status —— 加了认证之后它需要登录，健康检查会一直 401、容器永远 unhealthy。
+# （镜像里没有 curl，用标准库）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD python3 -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8765/api/status',timeout=3).status==200 else 1)"
+    CMD python3 -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8765/api/auth/state',timeout=3).status==200 else 1)"
 
 # 以 root 运行：ICMP 需要 NET_RAW（Docker 默认能力集已包含），
 # 且读宿主 ARP 表、mDNS 组播在 host 网络下最省事。只在可信内网暴露本服务。
