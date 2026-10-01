@@ -82,6 +82,30 @@ check('前端代码里没有硬编码密码', !/password\s*[:=]\s*['"][^'"]+['"]
 check('前端只有默认账号的提示文案，没有默认密码逻辑',
   !/localStorage.*password|sessionStorage.*password/i.test(JS));
 
+// ---------- 8. 收起态侧边栏的「中轴对齐」 ----------
+// width: 0 只把元素压成 0 宽，它占的位置（gap、padding、行盒高度）还在：
+// .nav-label 两侧各 11px 的 gap、.nav-badge 的 padding: 0 7px 都会把图标从中轴推开，
+// .sidebar-title 那 19px 的行盒在纵向排布时白占一行。所以收起态必须连「位置残渣」一起清掉，
+// 少一条就会出现「收起来以后图标东倒西歪」——纯视觉问题，功能测试完全抓不到。
+const railRules = [
+  ['顶栏改纵向排布（否则折叠按钮被挤出轨道裁掉）', /\.app\.collapsed\s+\.sidebar-head\s*\{[^}]*flex-direction:\s*column/],
+  ['标题彻底 display:none（不只是 width: 0）', /\.app\.collapsed\s+\.sidebar-title\s*\{[^}]*display:\s*none/],
+  ['折叠按钮不再 margin-left:auto（纵排时会顶到右边缘）', /\.app\.collapsed\s+\.collapse-btn\s*\{[^}]*margin-left:\s*0/],
+  ['导航项 gap 归零（0 宽的标签仍占两个 gap）', /\.app\.collapsed\s+\.nav-item\s*\{[^}]*gap:\s*0/],
+  ['导航徽标彻底 display:none（0 宽也还有 14px 内边距）', /\.app\.collapsed\s+\.nav-badge\s*\{[^}]*display:\s*none/],
+  ['账号区改纵向居中（30+9+30 并排放不进 66px）', /\.app\.collapsed\s+\.sidebar-user\s*\{[^}]*flex-direction:\s*column/],
+  ['底部状态点居中', /\.app\.collapsed\s+\.sidebar-foot\s*\{[^}]*justify-content:\s*center/],
+];
+for (const [name, re] of railRules) check(`收起态：${name}`, re.test(CSS));
+check('收起态的中轴规则限定在 ≥901px（窄屏抽屉不走这套）', /@media \(min-width: 901px\)/.test(CSS));
+
+// 顺序也是坑：媒体查询不增加优先级，抽屉里「把用户名放回来」的规则
+// 必须写在文件末尾那条 display: none 之后，写反了在手机上看就是没有用户名。
+const hideUserText = CSS.indexOf('.app.collapsed .sidebar-user-text { display: none; }');
+const showUserText = CSS.search(/@media \(max-width: 900px\)\s*\{\s*\.app\.collapsed \.sidebar-user-text \{ display: flex; \}/);
+check('抽屉里放回用户名的规则写在「隐藏」规则之后（写反了会被盖掉）',
+  hideUserText >= 0 && showUserText > hideUserText);
+
 let failed = 0;
 for (const [name, ok] of checks) {
   console.log((ok ? '✅ ' : '❌ ') + name);

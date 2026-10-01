@@ -111,6 +111,36 @@ h3 { font-size: 16px; }
 }
 .app.collapsed .nav-item { justify-content: center; padding: 9px 0; }
 
+/* 收起态的「中轴对齐」：轨道里每个可见元素都必须落在同一条竖中线上。
+   坑在于上面的 width: 0 只把元素压成 0 宽，它占的位置（gap、padding、行盒高度）还在：
+     · .nav-label 是 0 宽，但左右两个 11px 的 gap 还在 —— 图标被推左 11px；
+     · .nav-badge 是 0 宽，但 padding: 0 7px 还在，再叠一个 gap —— 图标又被推左 4px；
+     · .sidebar-title 是 0 宽，行盒高度还在（约 19px），一旦改成纵向排布就白占一行。
+   所以收起态必须把这些「位置残渣」也一并清掉。窄屏抽屉（≤900px）不走这套。 */
+@media (min-width: 901px) {
+  .app.collapsed .sidebar-head {
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 0 8px;
+  }
+  .app.collapsed .sidebar-title { display: none; }
+  /* 收起键原本靠 margin-left: auto 顶到右边；纵向排布时这个 auto 会把它推到右边缘 */
+  .app.collapsed .collapse-btn { margin-left: 0; }
+
+  .app.collapsed .nav-item { gap: 0; }
+  .app.collapsed .nav-badge { display: none; }
+
+  /* 头像 30 + 退出按钮 30 并排放不进 66-20 的宽度，改成上下居中 */
+  .app.collapsed .sidebar-user {
+    flex-direction: column;
+    gap: 4px;
+    margin: 6px 0 0;
+    padding: 8px 0;
+  }
+
+  .app.collapsed .sidebar-foot { justify-content: center; gap: 0; padding: 12px 0; }
+}
+
 .sidebar-foot {
   margin-top: auto;
   display: flex;
@@ -1314,6 +1344,12 @@ button.ghost.danger:hover:not(:disabled) { border-color: var(--red); color: #fec
 .sidebar-user-text b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-user-text i { font-style: normal; font-size: 11px; color: var(--muted); }
 .app.collapsed .sidebar-user-text { display: none; }
+/* 窄屏抽屉里要把用户名/角色放回来：抽屉宽 244px，横排完全放得下。
+   `collapsed` 是存在 localStorage 里的，在桌面收起过、再用手机打开就会走到这里；
+   上面那条规则写在文件末尾，靠媒体查询加在后面才能盖住它（媒体查询本身不增加优先级）。 */
+@media (max-width: 900px) {
+  .app.collapsed .sidebar-user-text { display: flex; }
+}
 
 /* 角色徽标 */
 .role-tag {

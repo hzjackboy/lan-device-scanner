@@ -153,6 +153,19 @@
     调用点静默用错实现。踩过一次——给用户表写的 `fmtTime` 被历史表格的 `fmtTime` 顶掉，
     空值没兜住，页面显示 1970 年的 `08:00:00`。`tests/ui_lint.test.js` 现在会检查
     重名函数、`$('id')` 是否真实存在、只读模式选择器是否命中、视图与侧边栏入口是否配套。
+14. **收起态侧边栏的 `width: 0` 清不掉元素占的位置**：侧边栏收起后只留一条 66px 的图标轨道，
+   原先靠 `opacity: 0; width: 0` 藏文字，结果图标东倒西歪——因为 `width: 0` 只把元素压成 0 宽，
+   它**占的位置还在**：`.nav-label` 两侧各 11px 的 `gap`、`.nav-badge` 的 `padding: 0 7px`（还有
+   14px 宽）都把图标从中轴推开；`.sidebar-title` 那 19px 的**行盒高度**也还在，一旦改成纵向
+   排布就白占一行。所以收起态要连残渣一起清：`gap: 0` + 徽标 `display: none` + 标题
+   `display: none`，账号区（30+9+30 并排放不进 66-20）改纵向居中。这些都限定在
+   `@media (min-width: 901px)` 里，窄屏抽屉（244px）不受影响。
+   两个附带结论：① `.collapse-btn` 的 `margin-left: auto` 在纵向 flex 里会把按钮顶到右边缘；
+   ② 媒体查询**不增加优先级**，抽屉里放回 `.sidebar-user-text` 的规则必须写在文件末尾那条
+   `display: none` **之后**，写反了手机上看就是没有用户名（这是老 bug，已一起修）。
+   `tests/ui_lint.test.js` 有 9 项专门锁这些（删任一条都会红）。改这类纯视觉问题光看代码不靠谱：
+   起浏览器加载真实 `style.css` + 从 `index.html` 抽出来的真实侧边栏标记，
+   打上 `.collapsed` 后逐元素量 `getBoundingClientRect()` 的中轴，比肉眼可靠。
 
 ## API
 
@@ -175,7 +188,7 @@
 ~/Desktop/局域网扫描服务.command status    # 状态；start/stop/restart/open/toggle/log/help
 ./tests/run.sh                            # 跑全部测试（含启动脚本那套）
 ./tests/auth_unit.py                      # 只跑认证单元测试（72 项，不需要服务）
-./tests/ui_lint.test.js                   # 前端静态自检：重名函数 / id / 表格列（24 项）
+./tests/ui_lint.test.js                   # 前端静态自检：重名函数 / id / 表格列 / 收起态中轴（33 项）
 ./tests/packaging.test.js                # 打包自检：COPY / dockerignore / 健康检查（10 项）
 ./tests/launcher.test.sh                  # 只跑桌面启动脚本测试（12 项）
 ./tests/docker_smoke.sh                   # 容器冒烟测试（27 项）
