@@ -39,6 +39,24 @@ HOST="0.0.0.0"
 PID_FILE="${PROJECT_DIR}/data/server.pid"
 LOG_FILE="${PROJECT_DIR}/data/server.log"
 URL="http://127.0.0.1:${PORT}"
+
+# 服务需要登录。本机工具用 data/local_token 里的管理员令牌，
+# 不走会话 Cookie，也不用在网络上开什么免认证的回环后门。
+local_token() {
+    cat "${PROJECT_DIR}/data/local_token" 2>/dev/null | \
+        sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+}
+
+# 带令牌的 GET（令牌取不到就退回不带，让服务端正常拒绝）
+api_get() {
+    local tok
+    tok="$(local_token)"
+    if [ -n "${tok}" ]; then
+        curl -fsS -m 3 -H "X-Local-Token: ${tok}" "$1" 2>/dev/null
+    else
+        curl -fsS -m 3 "$1" 2>/dev/null
+    fi
+}
 PYTHON="$(command -v python3 || true)"
 
 # 菜单在等待输入时，每隔这么多秒刷新一次状态面板
@@ -80,7 +98,13 @@ port_pid() {
 
 # HTTP 真的有响应吗
 is_up() {
-    curl -fsS -m 3 "${URL}/api/status" >/dev/null 2>&1
+    local tok
+    tok="$(local_token)"
+    if [ -n "${tok}" ]; then
+        curl -fsS -m 3 -H "X-Local-Token: ${tok}" "${URL}/api/status" >/dev/null 2>&1
+    else
+        curl -fsS -m 3 "${URL}/api/status" >/dev/null 2>&1
+    fi
 }
 
 # 拿服务进程号：先信 pid 文件，再按端口找
@@ -199,7 +223,7 @@ do_status() {
     fi
     ok "服务运行中（PID $(server_pid)，端口 ${PORT}）"
     local json
-    json="$(curl -s -m 3 "${URL}/api/status")"
+    json="$(api_get "${URL}/api/status")"
     printf '%s' "${json}" | "${PYTHON}" -c '
 import json, sys
 try:
@@ -293,7 +317,7 @@ load_status() {
     S_PID="$(server_pid)"
 
     local json
-    json="$(curl -s -m 3 "${URL}/api/status" 2>/dev/null)"
+    json="$(api_get "${URL}/api/status")"
     [ -z "${json}" ] && return 0
     [ -z "${PYTHON}" ] && return 0
 

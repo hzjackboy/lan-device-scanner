@@ -39,25 +39,49 @@ step() { printf '\n%s── %s ──%s\n' "${DIM}" "$*" "${RESET}"; }
 cleanup() { docker rm -f "${NAME}" >/dev/null 2>&1; }
 trap cleanup EXIT
 
+# 服务需要登录。容器首次启动会在 /app/data/local_token 生成管理员令牌；
+# 容器内用 ctoken()，宿主机侧访问映射端口用 htoken()。
+ctoken() {
+    docker exec "${NAME}" python3 -c \
+        'import json;print(json.load(open("/app/data/local_token"))["token"])' 2>/dev/null
+}
+
+htoken() {
+    sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        "${DATA_DIR}/local_token" 2>/dev/null
+}
+
+hcurl() {  # 宿主机侧带令牌的 curl
+    local tok; tok="$(htoken)"
+    if [ -n "${tok}" ]; then curl -fsS -H "X-Local-Token: ${tok}" "$@"
+    else curl -fsS "$@"; fi
+}
+
 # 从容器内部取数据：镜像里没有 curl，用 python3 标准库
 cexec() { # $1=url，$2=可选 POST body
     if [ $# -ge 2 ]; then
         docker exec "${NAME}" python3 -c '
-import sys, urllib.request
-req = urllib.request.Request(sys.argv[1], data=sys.argv[2].encode(),
-                             headers={"Content-Type": "application/json"}, method="POST")
+import sys, json, urllib.request
+h = {"Content-Type": "application/json"}
+try: h["X-Local-Token"] = json.load(open("/app/data/local_token"))["token"]
+except Exception: pass
+req = urllib.request.Request(sys.argv[1], data=sys.argv[2].encode(), headers=h, method="POST")
 print(urllib.request.urlopen(req, timeout=10).read().decode())' "$1" "$2"
     else
         docker exec "${NAME}" python3 -c '
-import sys, urllib.request
-print(urllib.request.urlopen(sys.argv[1], timeout=10).read().decode())' "$1"
+import sys, json, urllib.request
+h = {}
+try: h["X-Local-Token"] = json.load(open("/app/data/local_token"))["token"]
+except Exception: pass
+req = urllib.request.Request(sys.argv[1], headers=h)
+print(urllib.request.urlopen(req, timeout=10).read().decode())' "$1"
     fi
 }
 
 wait_http() {      # 从本机探测（端口映射场景）$1=url $2=最多等几秒
     local url="$1" limit="${2:-60}" i
     for i in $(seq 1 "${limit}"); do
-        curl -fsS -m 2 "${url}/api/status" >/dev/null 2>&1 && return 0
+        hcurl -m 2 "${url}/api/status" >/dev/null 2>&1 && return 0
         sleep 1
     done
     return 1
@@ -100,26 +124,26 @@ for path in "/" "/static/app.js" "/static/style.css"; do
     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}${path}")"
     [ "${code}" = "200" ] && ok "GET ${path} → 200" || bad "GET ${path} → ${code}"
 done
-curl -fsS "http://127.0.0.1:${PORT}/api/status" | python3 -c '
+hcurl "http://127.0.0.1:${PORT}/api/status" | python3 -c '
 import json,sys
 d = json.load(sys.stdin)
 print("    版本 %s | 网卡 %s | 台账 %s 台" % (
     d["version"], ", ".join(i["cidr"] for i in d["interfaces"]) or "无", d["devices"]["total"]))
 ' 2>/dev/null && ok "状态接口返回正常" || bad "状态接口异常"
-BRIDGE_CIDR="$(curl -fsS "http://127.0.0.1:${PORT}/api/status" | python3 -c 'import json,sys;print(",".join(i["cidr"] for i in json.load(sys.stdin)["interfaces"]))' 2>/dev/null)"
+BRIDGE_CIDR="$(hcurl "http://127.0.0.1:${PORT}/api/status" | python3 -c 'import json,sys;print(",".join(i["cidr"] for i in json.load(sys.stdin)["interfaces"]))' 2>/dev/null)"
 case "${BRIDGE_CIDR}" in
     172.*) ok "bridge 模式下只能看到容器网络（${BRIDGE_CIDR}）——这就是必须用 host 网络的原因" ;;
     *)     ok "bridge 模式下网段：${BRIDGE_CIDR}" ;;
 esac
-SID="$(curl -fsS -X POST "http://127.0.0.1:${PORT}/api/scan" -H 'Content-Type: application/json' \
+SID="$(hcurl -X POST "http://127.0.0.1:${PORT}/api/scan" -H 'Content-Type: application/json' \
         -d '{"subnet":"10.0.0.0/24","demo":true}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["scan_id"])' 2>/dev/null)"
 if [ -n "${SID}" ]; then
     for i in $(seq 1 30); do
-        st="$(curl -fsS "http://127.0.0.1:${PORT}/api/scan/${SID}" | python3 -c 'import json,sys;print(json.load(sys.stdin)["scan"]["state"])' 2>/dev/null)"
+        st="$(hcurl "http://127.0.0.1:${PORT}/api/scan/${SID}" | python3 -c 'import json,sys;print(json.load(sys.stdin)["scan"]["state"])' 2>/dev/null)"
         [ "${st}" = "done" ] && break
         sleep 1
     done
-    n="$(curl -fsS "http://127.0.0.1:${PORT}/api/scan/${SID}" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)["scan"]["devices"]))' 2>/dev/null)"
+    n="$(hcurl "http://127.0.0.1:${PORT}/api/scan/${SID}" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)["scan"]["devices"]))' 2>/dev/null)"
     [ "${n:-0}" -gt 0 ] && ok "演示扫描跑通，识别 ${n} 台设备（扫描引擎与 SSE 在容器里正常）" || bad "演示扫描没出结果"
 else
     bad "启动演示扫描失败"

@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import mimetypes
 import os
@@ -37,12 +38,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import auth  # noqa: E402
 import oui  # noqa: E402
 import scanner  # noqa: E402
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 MANAGER = scanner.ScanManager(max_jobs=60)
 # 设备台账：长期保存扫到过的设备（含已掉线的），支持人工编辑，落盘 data/devices.json
@@ -59,6 +61,27 @@ SCHEDULER = scanner.AutoScheduler(
     state_file=os.path.join(BASE_DIR, "data", "auto.json"),
     interval=3600,
 )
+
+# 认证：用户库、会话、本地管理员令牌都在 data/ 下（均已 gitignore）
+AUTH = auth.AuthStore(
+    os.path.join(BASE_DIR, "data", "users.json"),
+    os.path.join(BASE_DIR, "data", "sessions.json"),
+    os.path.join(BASE_DIR, "data", "local_token"),
+)
+SESSION_COOKIE = "lanscan_session"
+LOCAL_TOKEN_HEADER = "X-Local-Token"
+
+# 不需要登录就能访问的接口（登录页自己要用的）
+PUBLIC_API = {"/api/auth/state", "/api/auth/login"}
+# 登录了、但「必须先改密码」时仍放行的接口
+PASSWORD_CHANGE_API = {"/api/auth/state", "/api/auth/password", "/api/auth/logout"}
+# 只有管理员能碰的接口前缀（查看器连列表都不给看）
+ADMIN_API_PREFIXES = ("/api/users",)
+
+
+def _is_admin_only(path: str) -> bool:
+    return any(path == p or path.startswith(p + "/") or path.startswith(p + "?")
+               for p in ADMIN_API_PREFIXES)
 
 
 def local_ips() -> list[str]:
@@ -85,6 +108,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        # 基础加固：禁止嗅探类型、禁止被内嵌到别的站点、不泄漏来源路径
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
         for key, value in (extra or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -114,11 +141,153 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError):
             return {}
 
+    def _drain_body(self) -> None:
+        """把请求体读掉再回错误。
+
+        HTTP/1.1 是长连接：如果拒绝了请求却不读它的 body，那串字节会被当成
+        **下一个请求的开头**，表现为「第一个请求被拒后，同一条连接上的后续请求
+        全部 400」。这个坑很隐蔽——用 curl 每次新建连接就看不出来，
+        浏览器和 node fetch 默认复用连接就会踩到。
+        """
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return
+        remaining = min(max(length, 0), 1 << 20)
+        while remaining > 0:
+            try:
+                chunk = self.rfile.read(min(remaining, 65536))
+            except (OSError, ValueError):
+                return
+            if not chunk:
+                return
+            remaining -= len(chunk)
+
+    def _deny(self, message: str, status: int = 403) -> None:
+        """拒绝请求：先丢弃 body，保证长连接还能继续用。"""
+        self._drain_body()
+        self._error(message, status)
+
+    def _deny_json(self, payload: dict, status: int) -> None:
+        self._drain_body()
+        self._json(payload, status)
+
+    # ---------------- 认证 ----------------
+
+    def _client_ip(self) -> str:
+        return self.client_address[0] if self.client_address else "-"
+
+    def _cookie(self, name: str) -> str:
+        raw = self.headers.get("Cookie") or ""
+        for part in raw.split(";"):
+            key, _, value = part.strip().partition("=")
+            if key == name:
+                return urllib.parse.unquote(value)
+        return ""
+
+    def _local_token_ok(self) -> bool:
+        """同机命令行工具（桌面脚本 / 测试）走这个，别在网络上用它。"""
+        supplied = (self.headers.get(LOCAL_TOKEN_HEADER) or "").strip()
+        return bool(supplied) and hmac.compare_digest(supplied, AUTH.local_token)
+
+    def _current_user(self) -> dict | None:
+        if self._local_token_ok():
+            return {"username": "local-token", "role": "admin",
+                    "must_change_password": False, "local": True}
+        return AUTH.resolve(self._cookie(SESSION_COOKIE))
+
+    def _set_session_cookie(self, token: str) -> str:
+        # 局域网是 HTTP，所以不能加 Secure（加了浏览器就不会回传）；
+        # HttpOnly 挡 XSS 偷令牌，SameSite=Lax 挡跨站 POST。
+        return (f"{SESSION_COOKIE}={urllib.parse.quote(token)}; Path=/; "
+                f"HttpOnly; SameSite=Lax; Max-Age={auth.SESSION_TTL}")
+
+    def _clear_session_cookie(self) -> str:
+        return f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+
+    def _same_origin(self) -> bool:
+        """改状态的请求做一次同源校验，配合 SameSite=Lax 防 CSRF。"""
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True                      # curl / 同源简单请求不带 Origin
+        host = self.headers.get("Host") or ""
+        try:
+            return urllib.parse.urlsplit(origin).netloc == host
+        except ValueError:
+            return False
+
+    def _require_user(self, path: str):
+        """认证/授权总闸。放行返回用户记录；拦下则返回 None（响应已发）。"""
+        method = self.command.upper()
+
+        # 静态资源不分权限：登录页本身也要靠它们渲染出来。
+        # 只有 /api/ 下的接口需要认证（页面里没有任何机密，数据全靠接口取）。
+        if not path.startswith("/api/"):
+            return {"username": None, "role": "guest",
+                    "must_change_password": False, "anonymous": True}
+
+        # 改状态的请求先查同源
+        if method in ("POST", "PUT", "PATCH", "DELETE") and not self._same_origin():
+            self._deny("跨站请求被拒绝", 403)
+            return None
+
+        user = self._current_user()
+
+        if path in PUBLIC_API:
+            return user or {"username": None, "role": "guest",
+                            "must_change_password": False, "anonymous": True}
+
+        if user is None:
+            self._deny_json({"ok": False, "error": "请先登录",
+                             "code": "unauthenticated"}, 401)
+            return None
+
+        # 首次登录（或管理员重置后）必须先把密码改掉，服务端强制拦截
+        if user.get("must_change_password") and path not in PASSWORD_CHANGE_API:
+            self._deny_json({"ok": False, "error": "首次登录需要先修改密码",
+                             "code": "password_change_required"}, 403)
+            return None
+
+        if user.get("role") != "admin":
+            if _is_admin_only(path):
+                self._deny("只有管理员能管理用户", 403)
+                return None
+            # 查看器：GET 一律放行（都是只读接口），改状态的一律拒绝
+            if method != "GET" and path not in PASSWORD_CHANGE_API:
+                self._deny("当前账号是只读权限（viewer）", 403)
+                return None
+        return user
+
+    def _auth_state(self, user: dict) -> dict:
+        return {
+            "ok": True,
+            "version": VERSION,
+            "authenticated": bool(user and user.get("username")),
+            "user": ({"username": user.get("username"), "role": user.get("role"),
+                      "must_change_password": bool(user.get("must_change_password")),
+                      "local": bool(user.get("local"))}
+                     if user and user.get("username") else None),
+            "min_password_len": auth.MIN_PASSWORD_LEN,
+        }
+
     # ---------------- 路由 ----------------
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
+
+        user = self._require_user(path)
+        if user is None:
+            return
+
+        if path == "/api/auth/state":
+            self._json(self._auth_state(user))
+            return
+        if path == "/api/users":
+            self._json({"ok": True, "users": AUTH.list_users(),
+                        "roles": list(auth.ROLES),
+                        "min_password_len": auth.MIN_PASSWORD_LEN})
+            return
 
         if path == "/api/status":
             self._json({
@@ -219,7 +388,102 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/api/scan":
+        path = parsed.path
+
+        user = self._require_user(path)
+        if user is None:
+            return
+
+        if path == "/api/auth/login":
+            payload = self._read_json()
+            username = str(payload.get("username") or "").strip()
+            ip = self._client_ip()
+            if AUTH.retry_after(username, ip) > 0:
+                self._json({"ok": False, "code": "rate_limited",
+                            "error": "失败次数过多，请稍后再试"}, 429)
+                return
+            rec, why = AUTH.authenticate(username, str(payload.get("password") or ""), ip)
+            if not rec:
+                # 对外只给一句话，不区分「用户不存在」和「密码错」
+                self.log_message("登录失败 user=%r ip=%s reason=%s", username, ip, why)
+                self._error("用户名或密码不对", 401)
+                return
+            token = AUTH.create_session(rec["username"], ip)
+            self.log_message("登录成功 user=%s ip=%s role=%s",
+                             rec["username"], ip, rec.get("role"))
+            body = json.dumps({
+                "ok": True,
+                "user": {"username": rec["username"], "role": rec.get("role"),
+                         "must_change_password": bool(rec.get("must_change_password"))},
+                "must_change_password": bool(rec.get("must_change_password")),
+            }, ensure_ascii=False).encode("utf-8")
+            self._send(200, body, "application/json; charset=utf-8",
+                       extra={"Set-Cookie": self._set_session_cookie(token)})
+            return
+
+        if path == "/api/auth/logout":
+            AUTH.destroy(self._cookie(SESSION_COOKIE))
+            body = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
+            self._send(200, body, "application/json; charset=utf-8",
+                       extra={"Set-Cookie": self._clear_session_cookie()})
+            return
+
+        if path == "/api/auth/password":
+            payload = self._read_json()
+            ok, reason = AUTH.change_password(
+                user["username"], str(payload.get("old") or ""),
+                str(payload.get("new") or ""))
+            if not ok:
+                self._error(reason, 400)
+                return
+            self.log_message("修改密码 user=%s", user["username"])
+            # 改完密码旧会话全失效，这里直接发一个新令牌，免得用户被踢下线
+            token = AUTH.create_session(user["username"], self._client_ip())
+            body = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
+            self._send(200, body, "application/json; charset=utf-8",
+                       extra={"Set-Cookie": self._set_session_cookie(token)})
+            return
+
+        if path == "/api/users":
+            payload = self._read_json()
+            rec, reason = AUTH.create_user(
+                str(payload.get("username") or ""),
+                str(payload.get("password") or ""),
+                str(payload.get("role") or "viewer"))
+            if not rec:
+                self._error(reason, 400)
+                return
+            self.log_message("新建用户 %s（role=%s）by %s",
+                             rec["username"], rec["role"], user["username"])
+            self._json({"ok": True, "user": rec}, 201)
+            return
+
+        if path.startswith("/api/users/"):
+            target = urllib.parse.unquote(path[len("/api/users/"):].strip("/"))
+            payload = self._read_json()
+            action = str(payload.get("action") or "").strip()
+
+            if action == "reset-password":
+                ok, reason = AUTH.reset_password(target, str(payload.get("password") or ""))
+                if not ok:
+                    self._error(reason, 400)
+                    return
+                self.log_message("重置密码 %s by %s", target, user["username"])
+                self._json({"ok": True, "user": AUTH.get_user(target)})
+                return
+            if action == "set-role":
+                ok, reason = AUTH.set_role(target, str(payload.get("role") or ""),
+                                           actor=user["username"])
+                if not ok:
+                    self._error(reason, 400)
+                    return
+                self.log_message("改角色 %s by %s", target, user["username"])
+                self._json({"ok": True, "user": AUTH.get_user(target)})
+                return
+            self._error("未知操作，action 只能是 reset-password / set-role", 400)
+            return
+
+        if path == "/api/scan":
             payload = self._read_json()
             options = {
                 "profile": payload.get("profile", "fast"),
@@ -297,6 +561,22 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        user = self._require_user(path)
+        if user is None:
+            return
+
+        if path.startswith("/api/users/"):
+            target = urllib.parse.unquote(path[len("/api/users/"):].strip("/"))
+            ok, reason = AUTH.delete_user(target, actor=user["username"])
+            if not ok:
+                self._error(reason, 400)
+                return
+            self.log_message("删除用户 %s by %s", target, user["username"])
+            self._json({"ok": True, "users": AUTH.list_users()})
+            return
+
         if parsed.path.startswith("/api/devices/"):
             key = urllib.parse.unquote(parsed.path[len("/api/devices/"):].strip("/"))
             if REGISTRY.delete(key):

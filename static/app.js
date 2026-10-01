@@ -66,8 +66,391 @@ const VIEWS = {
   scan: { title: '设备扫描' },
   history: { title: '历史记录' },
   devices: { title: '设备管理' },
+  users: { title: '用户管理', admin: true },
   about: { title: '关于与说明' },
 };
+
+/* ==================================================================
+ *  认证
+ *  服务端才是权威：未登录 401、必须先改密 403（code=password_change_required）。
+ *  前端这里做的只是「把界面切到登录页」和「按角色藏掉按钮」，
+ *  就算有人绕过这些，服务端一样会拦。
+ * ================================================================== */
+const AUTH = { user: null, ready: false };
+
+function authRole() { return (AUTH.user && AUTH.user.role) || 'guest'; }
+function isAdmin() { return authRole() === 'admin'; }
+
+function showAuthGate(mode) {
+  const gate = $('auth-gate');
+  if (!mode) { gate.hidden = true; $('app').classList.remove('locked'); return; }
+  gate.hidden = false;
+  $('login-form').hidden = mode !== 'login';
+  $('force-form').hidden = mode !== 'force';
+  if (mode === 'login') {
+    authError('login-error', null);
+    setTimeout(() => { try { $('login-user').focus(); } catch (_) {} }, 30);
+  } else {
+    authError('force-error', null);
+    setTimeout(() => { try { $('force-old').focus(); } catch (_) {} }, 30);
+  }
+}
+
+function applyUser(user) {
+  AUTH.user = user || null;
+  AUTH.ready = true;
+  const app = $('app');
+  const name = (user && user.username) || '';
+  const role = (user && user.role) || 'guest';
+
+  $('sidebar-user').hidden = !name;
+  $('user-name').textContent = name || '—';
+  $('user-role').textContent = role === 'admin' ? '管理员'
+    : (role === 'viewer' ? '只读账号' : role);
+  $('user-avatar').textContent = (name || '?').slice(0, 1).toUpperCase();
+
+  // 只读账号：藏掉所有会改数据的控件（服务端同样会拒）
+  app.classList.toggle('readonly', !!name && role !== 'admin');
+  // 「用户管理」只给管理员看
+  $('nav-users').hidden = !(name && role === 'admin');
+  if (name && role !== 'admin' && state.view === 'users') switchView('home');
+}
+
+async function refreshAuthState() {
+  try {
+    const res = await fetch('/api/auth/state');
+    const data = await res.json();
+    applyUser(data.user || null);
+    if (data.version) $('auth-version').textContent = 'v' + data.version;
+    if (!data.authenticated) return 'login';
+    if (data.user && data.user.must_change_password) return 'force';
+    return null;
+  } catch (_) {
+    return null;   // 服务不可达时别卡在登录页，走正常的报错路径
+  }
+}
+
+/** 重跑当前视图的数据加载。
+ *
+ *  为什么需要它：init() 里 switchView() 跑在认证之前，那时 AUTH.user 还是空的，
+ *  loadUsers() 会因为 isAdmin() 为 false 直接返回。认证完成后不补这一次，
+ *  直接用 #/users 打开就会看到一张空表（而且只有管理员会踩到）。 */
+function reloadCurrentView() {
+  switch (state.view) {
+    case 'users': loadUsers(); break;
+    case 'devices': loadDevices(); break;
+    case 'history': loadHistory(); break;
+    case 'home': renderHome(); if (state.chartStats) renderChart(state.chartStats); break;
+    case 'about': loadAbout(); break;
+    default: break;
+  }
+}
+
+/** 启动时决定：直接进应用，还是先过登录/改密闸门。 */
+async function bootAuth() {
+  const need = await refreshAuthState();
+  showAuthGate(need);
+  if (need === null) reloadCurrentView();
+  return need === null;
+}
+
+function authError(elId, message) {
+  const el = $(elId);
+  if (!el) return;
+  if (!message) { el.hidden = true; el.textContent = ''; return; }
+  el.hidden = false;
+  el.textContent = message;
+}
+
+async function doLogin(username, password) {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // 服务端只说「用户名或密码不对」，这里也别自作聪明地区分用户不存在
+    authError('login-error', data.error || `登录失败（HTTP ${res.status}）`);
+    return false;
+  }
+  applyUser(data.user || null);
+  authError('login-error', null);
+  $('login-pass').value = '';
+  if (data.must_change_password) {
+    showAuthGate('force');
+  } else {
+    showAuthGate(null);
+    await afterLogin();
+  }
+  return true;
+}
+
+async function doLogout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } catch (_) { /* 网络断了也要把界面切回登录页 */ }
+  applyUser(null);
+  showAuthGate('login');
+}
+
+async function changePassword(oldPw, newPw, { errorId, onSuccess } = {}) {
+  const res = await fetch('/api/auth/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old: oldPw, new: newPw }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (errorId) authError(errorId, data.error || `修改失败（HTTP ${res.status}）`);
+    return { ok: false, error: data.error };
+  }
+  if (errorId) authError(errorId, null);
+  await refreshAuthState();          // 服务端会发新令牌，同步一下角色/状态
+  if (onSuccess) await onSuccess();
+  return { ok: true };
+}
+
+/** 登录成功之后：拉一次状态、恢复轮询。 */
+async function afterLogin() {
+  try {
+    const info = await (await fetch('/api/status')).json();
+    $('version-badge').textContent = 'v' + info.version;
+    $('foot-sub').textContent = 'v' + info.version;
+    if (info.auto) renderAuto(info.auto);
+    chartFromStatus(info);
+  } catch (_) { /* 忽略：常规加载还会再试 */ }
+  loadHistory();
+  loadLatestResult();
+  startServerWatch();
+  reloadCurrentView();
+}
+
+function initAuthEvents() {
+  $('login-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const btn = $('login-submit');
+    btn.disabled = true;
+    try {
+      await doLogin($('login-user').value.trim(), $('login-pass').value);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('force-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const next = $('force-new').value;
+    if (next !== $('force-new2').value) {
+      authError('force-error', '两次输入的新密码不一致');
+      return;
+    }
+    const btn = $('force-submit');
+    btn.disabled = true;
+    try {
+      const res = await changePassword($('force-old').value, next, { errorId: 'force-error' });
+      if (res.ok) {
+        $('force-old').value = $('force-new').value = $('force-new2').value = '';
+        showAuthGate(null);
+        toast('密码已更新');
+        await afterLogin();
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('force-logout').addEventListener('click', doLogout);
+  $('logout-btn').addEventListener('click', () => {
+    if (confirm('确定退出登录？')) doLogout();
+  });
+
+  // 任何接口返回 401/403 时统一切到登录页：包装 fetch，省得改二十个调用点
+  const native = (typeof fetch === 'function') ? fetch.bind(globalThis) : null;
+  if (native) {
+    globalThis.fetch = async (input, init) => {
+      const res = await native(input, init);
+      try {
+        const url = String((input && input.url) || input || '');
+        if (!url.includes('/api/auth/') && typeof res.clone === 'function') {
+          if (res.status === 401) {
+            const body = await res.clone().json();
+            if (body && body.code === 'unauthenticated') {
+              applyUser(null);
+              showAuthGate('login');
+            }
+          } else if (res.status === 403) {
+            const body = await res.clone().json();
+            if (body && body.code === 'password_change_required') showAuthGate('force');
+          }
+        }
+      } catch (_) { /* 不是 JSON，忽略 */ }
+      return res;
+    };
+  }
+}
+
+/* ------------------------- 用户管理 ------------------------- */
+
+/** 台账/用户列表用的时间戳格式（带日期）。
+ *
+ *  名字不能叫 fmtTime：那份是历史表格用的「HH:MM:SS」版本，同名的顶层函数
+ *  会被后声明的那个覆盖掉，用户表就会拿错格式化器——空值没兜住会显示成
+ *  1970 年的 08:00:00。 */
+function fmtStamp(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} `
+    + `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function labelRole(role) { return role === 'admin' ? '管理员' : '只读'; }
+
+let USERS = [];
+
+async function loadUsers() {
+  if (!isAdmin()) return;
+  try {
+    const data = await (await fetch('/api/users')).json();
+    USERS = data.users || [];
+    $('users-hint').textContent =
+      `共 ${USERS.length} 个账号 · 管理员可以创建账号、重置密码、调整角色。`;
+    renderUsers();
+  } catch (err) {
+    toast('读取用户列表失败：' + err.message);
+  }
+}
+
+function renderUsers() {
+  const tbody = $('user-rows');
+  tbody.innerHTML = '';
+  $('users-empty').hidden = USERS.length > 1;
+  USERS.forEach((user) => {
+    const tr = document.createElement('tr');
+    const me = !!(AUTH.user && AUTH.user.username === user.username);
+    const mustChange = user.must_change_password;
+    tr.innerHTML = `
+      <td>${esc(user.username)}${me ? ' <span class="muted">(我)</span>' : ''}</td>
+      <td><span class="role-tag ${esc(user.role)}">${labelRole(user.role)}</span></td>
+      <td><span class="state-tag ${mustChange ? 'warn' : ''}">${mustChange ? '待改初始密码' : '正常'}</span></td>
+      <td class="muted">${fmtStamp(user.last_login)}</td>
+      <td class="muted">${fmtStamp(user.created_at)}</td>
+      <td class="col-actions">
+        <div class="row-actions">
+          <button data-act="reset" data-user="${esc(user.username)}">重置密码</button>
+          <button data-act="role" data-user="${esc(user.username)}"
+                  data-role="${user.role === 'admin' ? 'viewer' : 'admin'}">
+            ${user.role === 'admin' ? '降为只读' : '设为管理员'}
+          </button>
+          <button data-act="delete" data-user="${esc(user.username)}" ${me ? 'disabled' : ''}>删除</button>
+        </div>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('button[data-act]').forEach((btn) => {
+    btn.addEventListener('click', () => onUserAction(btn.dataset.act, btn.dataset.user, btn.dataset.role));
+  });
+}
+
+async function onUserAction(act, username, role) {
+  if (act === 'delete') {
+    if (!confirm(`确定删除账号「${username}」？该账号会立即被踢下线。`)) return;
+    const res = await fetch('/api/users/' + encodeURIComponent(username), { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(data.error || '删除失败'); return; }
+    USERS = data.users || [];
+    renderUsers();
+    toast(`已删除 ${username}`);
+    return;
+  }
+  if (act === 'role') {
+    const res = await fetch('/api/users/' + encodeURIComponent(username), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set-role', role }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(data.error || '修改角色失败'); return; }
+    await loadUsers();
+    toast(`${username} 现在是 ${labelRole(role)}`);
+    return;
+  }
+  if (act === 'reset') openUserDialog('reset', username);
+}
+
+let userDialogMode = 'create';
+let userDialogTarget = '';
+
+function openUserDialog(mode, username = '') {
+  userDialogMode = mode;
+  userDialogTarget = username;
+  const creating = mode === 'create';
+  $('user-dialog-title').textContent = creating ? '新建用户' : `重置「${username}」的密码`;
+  $('user-name-field').hidden = !creating;
+  $('user-role-field').hidden = !creating;
+  $('user-pass-label').textContent = creating ? '初始密码' : '新的初始密码';
+  $('user-dialog-note').textContent = creating
+    ? '新账号首次登录时会被要求修改这个初始密码。'
+    : '重置后该账号的现有登录会立即失效，并需要再改一次密码。';
+  $('user-name-input').value = '';
+  $('user-role-input').value = 'viewer';
+  $('user-pass-input').value = '';
+  authError('user-dialog-error', null);
+  $('user-dialog').showModal();
+}
+
+async function saveUserDialog() {
+  const password = $('user-pass-input').value;
+  if (userDialogMode === 'create') {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: $('user-name-input').value.trim(),
+        password,
+        role: $('user-role-input').value,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { authError('user-dialog-error', data.error || '创建失败'); return; }
+    $('user-dialog').close();
+    await loadUsers();
+    toast(`已创建 ${data.user.username}`);
+    return;
+  }
+  const res = await fetch('/api/users/' + encodeURIComponent(userDialogTarget), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'reset-password', password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { authError('user-dialog-error', data.error || '重置失败'); return; }
+  $('user-dialog').close();
+  await loadUsers();
+  toast(`已重置 ${userDialogTarget} 的密码`);
+}
+
+async function saveSelfPassword() {
+  const msg = $('self-password-msg');
+  const next = $('self-new').value;
+  if (next !== $('self-new2').value) {
+    msg.textContent = '两次输入的新密码不一致';
+    return;
+  }
+  const res = await changePassword($('self-old').value, next, {});
+  if (!res.ok) { msg.textContent = res.error || '修改失败'; return; }
+  $('self-old').value = $('self-new').value = $('self-new2').value = '';
+  msg.textContent = '密码已更新。';
+  toast('密码已更新');
+}
+
+function initUsersView() {
+  $('user-add-btn').addEventListener('click', () => openUserDialog('create'));
+  $('user-dialog-close').addEventListener('click', () => $('user-dialog').close());
+  $('user-dialog-cancel').addEventListener('click', () => $('user-dialog').close());
+  $('user-dialog-save').addEventListener('click', saveUserDialog);
+  $('self-save').addEventListener('click', saveSelfPassword);
+}
 
 /* 设备类型/名称/厂商 关键词 → 方块图标 */
 const DEVICE_ICONS = [
@@ -105,6 +488,14 @@ const ICON_CHOICES = [
 ];
 
 const API_DOCS = [
+  ['POST', '/api/auth/login', '登录（JSON：username / password），成功下发 HttpOnly 会话 Cookie'],
+  ['POST', '/api/auth/logout', '退出登录并作废当前会话'],
+  ['GET', '/api/auth/state', '当前登录状态（<b>不需要登录也能调</b>，登录页靠它判断）'],
+  ['POST', '/api/auth/password', '改自己的密码（JSON：old / new），成功后换发新会话'],
+  ['GET', '/api/users', '用户列表（仅管理员）'],
+  ['POST', '/api/users', '新建用户（仅管理员，JSON：username / password / role）'],
+  ['POST', '/api/users/&lt;name&gt;', '改他人：action=reset-password | set-role（仅管理员）'],
+  ['DELETE', '/api/users/&lt;name&gt;', '删除用户（仅管理员；不能删自己、不能删最后一个管理员）'],
   ['GET', '/api/status', '服务信息、本机网段、ping 是否可用'],
   ['GET', '/api/interfaces', '可扫描网段列表'],
   ['POST', '/api/scan', '启动扫描（subnet / profile / demo / ping / mdns / netbios / resolve_names）'],
@@ -160,7 +551,13 @@ async function init() {
   bindEvents();
   initSidebar();
   initHomeMode();
+  initAuthEvents();
+  initUsersView();
   switchView(viewFromHash(), { push: false });
+
+  // 没登录/没改初始密码就先停在闸门上：这时候去拉数据只会拿到 401
+  if (!(await bootAuth())) return;
+
   try {
     const info = await (await fetch('/api/status')).json();
     $('version-badge').textContent = 'v' + info.version;
@@ -425,6 +822,7 @@ function switchView(name, { push = true } = {}) {
   if (name === 'home') { renderHome(); if (state.chartStats) renderChart(state.chartStats); }
   if (name === 'history') loadHistory();
   if (name === 'devices') loadDevices();
+  if (name === 'users') loadUsers();
   if (name === 'about') loadAbout();
 }
 
@@ -1367,7 +1765,8 @@ function onDeviceRowClick(e) {
   if (!dev) return;
 
   const btn = e.target.closest('button[data-action]');
-  const action = btn ? btn.dataset.action : 'edit';
+  // 只读账号的默认动作是「看详情」——否则点一下就直接进编辑弹窗了
+  const action = btn ? btn.dataset.action : (isAdmin() ? 'edit' : 'detail');
   if (action === 'star') toggleStar(dev);
   else if (action === 'detail') showDetail(dev);
   else if (action === 'delete') deleteDevices([dev.key], dev.name);

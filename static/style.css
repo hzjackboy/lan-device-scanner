@@ -998,7 +998,8 @@ button.mini.primary-mini {
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
 .form-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
 .form-grid label.full { grid-column: 1 / -1; }
-.form-grid input[type="text"], .form-grid textarea {
+.form-grid input[type="text"], .form-grid input[type="password"],
+.form-grid select, .form-grid textarea {
   background: #0e141c;
   border: 1px solid var(--line);
   color: var(--text);
@@ -1009,7 +1010,8 @@ button.mini.primary-mini {
   outline: none;
   resize: vertical;
 }
-.form-grid input[type="text"]:focus, .form-grid textarea:focus { border-color: var(--accent); }
+.form-grid input[type="text"]:focus, .form-grid input[type="password"]:focus,
+.form-grid select:focus, .form-grid textarea:focus { border-color: var(--accent); }
 .edit-flags { display: flex; gap: 18px; flex-wrap: wrap; }
 .edit-flags .inline { flex-direction: row; align-items: center; font-size: 12.5px; color: #c3cfdd; }
 
@@ -1242,3 +1244,124 @@ button.ghost.danger:hover:not(:disabled) { border-color: var(--red); color: #fec
   .home-stats .stat span { white-space: nowrap; }
 }
 
+
+/* ==================== 登录 / 用户管理 ==================== */
+
+/* 登录闸门：盖住整个界面，没登录时看不到任何内容 */
+.auth-gate {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: radial-gradient(1000px 620px at 50% -12%, #16233a 0%, var(--bg) 62%);
+}
+.auth-gate[hidden] { display: none; }
+
+.auth-card {
+  width: min(392px, 100%);
+  background: linear-gradient(180deg, #16202c 0%, #111823 100%);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px 24px 22px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .5);
+}
+.auth-brand { display: flex; align-items: center; gap: 11px; margin-bottom: 20px; }
+.auth-brand > span:last-child { display: flex; flex-direction: column; line-height: 1.32; }
+.auth-brand b { font-size: 15px; }
+.auth-brand i { font-style: normal; font-size: 11px; color: var(--muted); }
+.auth-logo {
+  width: 38px; height: 38px; flex: 0 0 38px;
+  display: grid; place-items: center;
+  border-radius: 11px; color: #fff;
+  background: linear-gradient(150deg, var(--accent), #1d4ed8);
+}
+.auth-logo svg { width: 21px; height: 21px; }
+
+.auth-form { display: flex; flex-direction: column; gap: 13px; }
+.auth-form[hidden] { display: none; }
+.auth-form h2 { margin: 0; font-size: 17px; }
+.auth-form .muted { margin: -6px 0 0; font-size: 12.5px; line-height: 1.6; }
+.auth-form .field > span { font-size: 12px; color: var(--muted); }
+.auth-form input {
+  width: 100%; padding: 10px 12px; font-size: 14px;
+  color: var(--text); background: #0d141d;
+  border: 1px solid var(--line); border-radius: 9px; outline: none;
+}
+.auth-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, .16); }
+.auth-submit { margin-top: 3px; justify-content: center; }
+.auth-cancel { justify-content: center; }
+.auth-foot { font-size: 12px; line-height: 1.6; }
+.auth-error {
+  margin: 0; padding: 9px 11px; font-size: 12.5px; line-height: 1.5;
+  color: #ffd9d9; background: rgba(248, 113, 113, .13);
+  border: 1px solid rgba(248, 113, 113, .34); border-radius: 9px;
+}
+.auth-error[hidden] { display: none; }
+
+/* 侧边栏底部：当前登录用户 */
+.sidebar-user {
+  display: flex; align-items: center; gap: 9px;
+  margin: 6px 10px 0; padding: 8px 9px;
+  border-top: 1px solid var(--line);
+}
+.sidebar-user[hidden] { display: none; }
+.avatar {
+  width: 30px; height: 30px; flex: 0 0 30px;
+  display: grid; place-items: center;
+  border-radius: 50%; font-size: 13px; font-weight: 600; color: #fff;
+  background: linear-gradient(150deg, var(--accent), #1d4ed8);
+}
+.sidebar-user-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.sidebar-user-text b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user-text i { font-style: normal; font-size: 11px; color: var(--muted); }
+.app.collapsed .sidebar-user-text { display: none; }
+
+/* 角色徽标 */
+.role-tag {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11.5px; line-height: 1.7; border: 1px solid var(--line); color: var(--muted);
+}
+.role-tag.admin { color: #bfdbfe; border-color: rgba(59, 130, 246, .5); background: rgba(59, 130, 246, .14); }
+.role-tag.viewer { color: #cbd5e1; }
+.state-tag { font-size: 12px; color: var(--muted); }
+.state-tag.warn { color: var(--amber); }
+.col-actions { text-align: right; white-space: nowrap; }
+.row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.row-actions button { padding: 4px 9px; font-size: 12px; }
+
+/* 只读账号：操作类控件直接隐藏（服务端也会拦，这里只是别让人白点） */
+.app.readonly #start-btn,
+.app.readonly #cancel-btn,
+.app.readonly #home-go-scan,
+.app.readonly #auto-toggle,
+.app.readonly #auto-interval,
+.app.readonly #auto-run-now,
+.app.readonly #dev-delete-offline,
+.app.readonly #dev-delete-selected,
+.app.readonly #dev-check-all,
+.app.readonly #edit-save,
+.app.readonly #edit-delete,
+.app.readonly #edit-reset,
+.app.readonly .row-actions,
+.app.readonly .empty-action,
+.app.readonly .history-actions button[data-action="edit"],
+.app.readonly .history-actions button[data-action="delete"] { display: none !important; }
+
+
+/* 用户管理表单 */
+#view-users .form-grid { grid-template-columns: repeat(3, 1fr); align-items: end; }
+#view-users .form-note { margin: 10px 0 0; font-size: 12.5px; }
+#view-users .field-actions { display: flex; }
+#user-dialog .dialog-body { min-width: min(520px, 82vw); }
+#user-dialog .form-note { font-size: 12.5px; margin: 12px 0 0; }
+
+@media (max-width: 900px) {
+  #view-users .form-grid { grid-template-columns: 1fr; }
+  #user-dialog .dialog-body { min-width: auto; }
+}
+@media (max-width: 720px) {
+  #user-table th:nth-child(5), #user-table td:nth-child(5) { display: none; }
+}
+@media (max-width: 560px) {
+  #user-table th:nth-child(4), #user-table td:nth-child(4) { display: none; }
+  .auth-card { padding: 20px 18px; }
+}

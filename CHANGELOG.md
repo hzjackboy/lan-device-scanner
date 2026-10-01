@@ -3,6 +3,54 @@
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)：`主版本.次版本.修订号`。
 版本号在 `server.py` 的 `VERSION` 常量里，页脚与顶栏徽标由 `/api/status` 动态取。
 
+## [1.4.0] — 2026-10-01
+
+访问控制：加登录、加用户管理，默认账号首次登录强制改密。
+
+### 新增
+
+- **登录页与访问控制**：所有 `/api/` 接口都需要登录（静态资源和 `/api/auth/state` 除外，
+  否则登录页自己都加载不出来）。默认账号 `admin` / `admin`，**首次登录必须修改密码**，
+  这一步由服务端拦截（未改密前访问业务接口一律 `403 password_change_required`），
+  不是靠前端藏按钮。
+- **用户管理页**（侧边栏新增入口，仅管理员可见）：新建账号、重置他人密码、
+  在 `admin` / `viewer` 之间切换角色、删除账号。
+- **两种角色**：`admin` 可以改设备 / 起扫描 / 管用户；`viewer` 只读——能看首页、
+  台账、历史，但所有改状态的请求都会被服务端拒绝，界面上对应的按钮也直接隐藏。
+- **本地管理员令牌**：`data/local_token`（权限 0600，首次启动自动生成）供同机的
+  命令行工具使用（桌面启动脚本、测试）。**没有做「回环地址免认证」**——容器是 host
+  网络时，回环免认证等于把整个局域网敞口。
+
+### 安全
+
+- 密码只存 **scrypt 加盐哈希**（n=2¹⁴，每次随机 salt），不落明文、不回显、不写日志；
+  校验用 `hmac.compare_digest` 常数时间比对。
+- 会话是服务端令牌，盘上只存令牌的 **SHA-256 摘要**，文件泄露也不能直接拿来登录；
+  有效期 7 天。
+- Cookie 带 `HttpOnly` + `SameSite=Lax`；改状态的请求额外校验 `Origin` 同源。
+- **登录失败限速**：同一 (用户名, IP) 15 分钟内错 5 次、或同一 IP 错 20 次即锁定 15 分钟。
+  用户名那一维特意带上了 IP——只按用户名计数的话，局域网里任何人连错 5 次就能把
+  admin 锁死，等于用限速换了个更好用的拒绝服务。
+- 响应补 `X-Content-Type-Options` / `X-Frame-Options` / `Referrer-Policy`。
+- 新密码至少 8 位，且不能是常见弱密码、不能等于用户名、不能是同一字符重复。
+
+### 修复
+
+- **拒绝请求时没读 body，会破坏 HTTP/1.1 长连接**：被拒的请求体残留在缓冲区里，
+  会被当成下一个请求的开头，表现为「同一连接上前一个请求被拒后，后续请求全部 400」。
+  curl 每次新建连接看不出来，浏览器和 node fetch 复用连接就会踩到。现在所有拒绝路径
+  都先排空请求体。
+- **`data/local_token` 重启后失效**：文件里存的是 JSON，第一版直接读原始文本当令牌，
+  首次启动碰巧正确（刚生成的就是它），重启后读到的却是整段 JSON，导致同机命令行工具
+  全部 401。
+- 用户表的时间列取错了格式化函数（重名函数被后声明的覆盖），空值没兜住会显示成
+  1970 年的 `08:00:00`。
+
+### 变更
+
+- 桌面启动脚本改用 `data/local_token` 访问 `/api/status`，不再依赖免认证接口。
+- 「关于」页补上默认账号说明，并说明局域网内是明文 HTTP、跨公网请套 HTTPS 反代。
+
 ## [1.3.0] — 2026-09-30
 
 界面适配：设备总览可切四种密度，页面按常见分辨率重新收口。
@@ -125,6 +173,7 @@ macOS 上（Docker Desktop 与 colima 都一样）host 网络仍只是虚拟机�
 - OUI 厂商库：内置常用表 + IEEE 全量 `oui.csv`（4 万条，`python3 update_oui.py` 获取）。
 - 实时 Web 界面：SSE 推送扫描进度，设备逐台出现，含网段分布热力图、CSV/JSON 导出。
 
+[1.4.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.4.0
 [1.3.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.3.0
 [1.2.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.2.0
 [1.1.0]: https://github.com/hzjackboy/lan-device-scanner/releases/tag/v1.1.0

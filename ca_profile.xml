@@ -16,6 +16,8 @@
 
 **镜像**：`hzjackboy/lan-device-scanner`（Docker Hub，amd64 + arm64 多架构）
 
+**默认账号 `admin` / `admin`，首次登录强制修改密码**；角色分管理员与只读，可在侧边栏「用户管理」里加账号。
+
 **⚠️ 安装时网络类型必须选 `Host`**：这个工具靠 ARP（二层广播域）发现设备，bridge 网络下容器被 NAT，容器的 `/proc/net/arp` 里只有 docker 网段，扫不到真实局域网。模板里已预设为 host。
 
 **获取帮助 / 反馈问题**：https://github.com/hzjackboy/lan-device-scanner/issues —— 提交 issue 前建议先跑 `docker logs lan-device-scanner` 看一眼日志。

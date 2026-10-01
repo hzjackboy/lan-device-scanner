@@ -10,7 +10,7 @@ FROM python:3.13-alpine
 LABEL org.opencontainers.image.title="lan-device-scanner" \
       org.opencontainers.image.description="局域网设备扫描服务：零依赖扫描引擎 + 实时 Web 界面" \
       org.opencontainers.image.source="https://github.com/hzjackboy/lan-device-scanner" \
-      org.opencontainers.image.version="1.3.0"
+      org.opencontainers.image.version="1.4.0"
 
 # iproute2 → ip 命令（识别网卡和网段）
 # iputils  → 标准 ping（ICMP 扫描；busybox 的 ping 参数不全，代码虽会自动降级，但装全更稳）

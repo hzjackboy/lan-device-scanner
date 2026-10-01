@@ -33,11 +33,17 @@
 
 主要功能：设备台账（别名 / 分类 / 位置 / 标签 / 备注 / 图标，重扫不覆盖人工内容）、在线离线饼图、设备方块墙（列表 / 大 / 中 / 小四种展示密度）、扫描历史、网段热力图、CSV/JSON 导出、服务端定时重扫。
 
+默认账号 admin / admin，首次登录强制改密。
+
 ⚠️ 安装时网络类型必须是 Host，否则扫不到真实局域网。</Overview>
 
   <Description>局域网设备扫描服务 —— 零依赖 Python 扫描引擎 + 实时 Web 界面。
 
-**安装后**：浏览器打开 `http://你的UnraidIP:8765`，选网段 → 点「开始扫描」。
+**安装后**：浏览器打开 `http://你的UnraidIP:8765`，用默认账号 `admin` / `admin` 登录。
+
+**⚠️ 首次登录会强制要求修改密码**（服务端强制，改密前所有业务接口都会被拒绝），新密码至少 8 位。之后可在侧边栏「用户管理」里加账号：`admin` 可管理，`viewer` 只读。
+
+用户与会话存在 `/app/data`（`users.json` / `sessions.json` / `local_token`），已随模板里的台账目录一起持久化。
 
 **关于网络类型**：必须是 `Host`。这个工具靠 ARP（二层广播域）发现设备，bridge 网络下容器被 NAT，容器的 `/proc/net/arp` 里只有 docker 网段，扫不到真实局域网。host 网络下端口直接占用宿主机 8765，所以不要配端口映射。
 
@@ -50,7 +56,7 @@ docker exec lan-device-scanner python3 update_oui.py --out /app/data/oui.csv
 docker restart lan-device-scanner
 ```
 
-**安全提示**：容器本身没有认证，同一个局域网内任何人都能打开页面并触发扫描。只在可信网络里运行；要暴露给非可信网络，请在前面套一层带认证的反向代理，并确保该代理转发 SSE 且关闭响应缓冲（Nginx 里 `proxy_buffering off;`），否则页面不会实时刷新。
+**安全提示**：服务自带登录（默认 `admin`/`admin`，首次登录强制改密），但局域网内是**明文 HTTP**——密码和会话 Cookie 没有 TLS 保护。只在可信网络里运行；要跨不可信网络访问，请在前面套一层 HTTPS 反向代理，并确保该代理转发 SSE 且关闭响应缓冲（Nginx 里 `proxy_buffering off;`），否则页面不会实时刷新。
 
 请只扫描自己有权管理的网络。</Description>
 

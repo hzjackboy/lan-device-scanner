@@ -5,17 +5,17 @@
 
 ## 当前状态
 
-- **版本**：`v1.3.0`。发版要同步改四处：`server.py` 的 `VERSION`、`static/index.html` 两处默认值、
+- **版本**：`v1.4.0`。发版要同步改四处：`server.py` 的 `VERSION`、`static/index.html` 两处默认值、
   `tests/ui_sidebar.test.js` 的桩数据、`Dockerfile` 的 `image.version`；再补 `CHANGELOG.md` 并打 tag
 - **服务**：由桌面脚本 `~/Desktop/局域网扫描服务.command` 管理，端口 8765
   （日志 `data/server.log`，进程号 `data/server.pid`）
 - **镜像**：Docker Hub 公开镜像 `hzjackboy/lan-device-scanner`（amd64 + arm64 多架构），
-  发版用 `./docker-push.sh hzjackboy 1.3.0 latest` 一条命令推
+  发版用 `./docker-push.sh hzjackboy 1.4.0 latest` 一条命令推
 - **仓库**：**公开** `hzjackboy/lan-device-scanner`（MIT 许可），本机 `gh` 已登录该账号。
   历史曾被 `git filter-repo` 重写过（清理真实设备信息），2026-09-30 删库重建过以获得干净的对象存储
 - **数据**：`data/devices.json`（设备台账，含真实 MAC/IP/主机名）、`data/auto.json`（定时重扫配置）
   —— 都在 `.gitignore` 里，**绝不要提交**
-- **测试**：`./tests/run.sh`（5 套离线 UI + 3 套联调 + 1 套启动脚本；服务在跑时自动附带联调）
+- **测试**：`./tests/run.sh`（6 套离线 UI/静态自检 + 1 套认证单元 + 4 套联调 + 1 套启动脚本，共 12 套；服务在跑时自动附带联调）
 - **文档地图**：`PRD.md`（产品需求：目标 / 用户画像 / 19 条需求优先级 / 逐条验收标准 / 路线图）、
   `README.md`（安装使用与排错）、`DOCKERHUB.md`（Docker Hub 仓库页的 Overview 正文，
   由 `docker-push.sh` 推送上去）、`CHANGELOG.md`（版本变更）、本文件（架构与踩坑）
@@ -33,6 +33,7 @@
 | `scanner.py` | 扫描引擎：网段识别、ARP、ping、端口、`ScanJob`、`ScanManager`、`AutoScheduler`、`DeviceRegistry` |
 | `mdns.py` | 自实现的 mDNS/Bonjour：组包、压缩指针解析、服务浏览、反查 |
 | `netbios.py` | 自实现的 NBNS 节点状态查询（拿 Windows 机器名） |
+| `auth.py` | 认证与用户管理：scrypt 哈希、会话令牌、登录限速、本地管理员令牌 |
 | `oui.py` | MAC 厂商库（内置表 + `oui.csv` 全量表）+ `infer_kind()` 设备类型推断 |
 | `update_oui.py` | 下载 IEEE 全量 OUI 到 `oui.csv`（已 gitignore，需要时跑一次） |
 | `static/` | 前端三件套（`index.html` / `style.css` / `app.js`），hash 路由 + SSE |
@@ -40,8 +41,8 @@
 | `tests/` | node + DOM 桩测试（离线 UI）与联调脚本 |
 | `Dockerfile` / `docker-compose.yml` | 容器化部署（**必须 host 网络**，否则 ARP 扫不到局域网） |
 
-前端 5 个视图：**首页**（在线/离线环形饼图 + 设备方块墙）、**设备扫描**、**历史记录**、
-**设备管理**（台账）、**关于与说明**。加视图只需：`VIEWS` 加一项 + 一个 `<section class="view">` + 一个 `.nav-item`。
+前端 6 个视图：**首页**（在线/离线环形饼图 + 设备方块墙）、**设备扫描**、**历史记录**、
+**设备管理**（台账）、**用户管理**（仅管理员）、**关于与说明**。加视图只需：`VIEWS` 加一项 + 一个 `<section class="view">` + 一个 `.nav-item`。
 
 **首页展示密度**：`list` / `l` / `m` / `s` 四档，存在 `state.homeMode` 与 `localStorage['home-mode']`。
 切换只改 `#home-grid` 的 `data-mode` 属性，**布局全在 CSS 里**（`[data-mode="..."]` 选择器），
@@ -70,6 +71,13 @@
    `icon` 是设备图标：`deviceIcon(dev)` 优先用人工值，为空才按类型/主机名/厂商猜；
    候选项在 `static/app.js` 的 `ICON_CHOICES`（由 `DEVICE_ICONS` 自动去重生成，保证风格一致）。
 6. **定时重扫在服务端**（不是浏览器定时器），配置落 `data/auto.json`，重启后按原节奏续排期。
+7. **认证是服务端强制的，前端只是配合**：`server.Handler._require_user()` 是所有 `/api/`
+   的总闸（静态资源与 `/api/auth/state` 放行，否则登录页自己加载不出来）。默认
+   `admin`/`admin`，首次登录必须改密——未改密前除 `/api/auth/{state,password,logout}`
+   外一律 `403 password_change_required`。角色分 `admin` / `viewer`，viewer 只能 GET
+   （`/api/users` 连看都不给）。加接口时记得想清楚它属于哪一档，别默认放行。
+   `data/` 下的三个新文件（`users.json` / `sessions.json` / `local_token`）都在
+   `.gitignore` 里，**绝不要提交**；它们都是 0600。
 
 ## 已知坑（都踩过）
 
@@ -120,7 +128,24 @@
    认证要先 `POST /v2/users/login/` 用「用户名 + PAT」换 JWT，再用
    `Authorization: JWT <token>` 调 `PATCH /v2/repositories/<ns>/<repo>/`。
 
+9. **拒绝请求必须先排空 body**：HTTP/1.1 是长连接，如果拒绝了请求却不读它的 body，
+   那串字节会被当成下一个请求的开头 —— 现象是「同一连接上前一个请求被拒后，后续请求全 400」。
+   curl 每次新建连接看不出来，浏览器和 node fetch 复用连接就会踩到。所有拒绝路径都要走
+   `Handler._deny()` / `_deny_json()`。回归测试见 `tests/integration_auth.js` 与
+   `tests/auth_unit.py`。
+10. **`data/local_token` 里存的是 JSON，不是裸令牌**：读的时候必须解析后取值。
+    第一版直接拿原文当令牌，首次启动碰巧对（刚生成的就是它），重启后读到的却是整段
+    JSON 文本，现象是「刚装好能用，重启一次同机命令行工具全部 401」。
+11. **`app.js` 里别起和已有函数同名的顶层函数**：同名的会被后声明的那个覆盖掉，
+    调用点静默用错实现。踩过一次——给用户表写的 `fmtTime` 被历史表格的 `fmtTime` 顶掉，
+    空值没兜住，页面显示 1970 年的 `08:00:00`。`tests/ui_lint.test.js` 现在会检查
+    重名函数、`$('id')` 是否真实存在、只读模式选择器是否命中、视图与侧边栏入口是否配套。
+
 ## API
+
+`GET /api/auth/state`（**免登录**）、`/api/users`（仅管理员）；
+`POST /api/auth/login`、`/api/auth/logout`、`/api/auth/password`、`/api/users`；
+`POST /api/users/<name>`（`action=reset-password|set-role`）、`DELETE /api/users/<name>`（均仅管理员）；
 
 `GET /api/status`（含 `auto` 与 `devices` 统计）、`/api/interfaces`、`/api/history`、`/api/oui`、
 `/api/auto`、`/api/devices`、`/api/devices/export`、`/api/scan/<id>`、`/api/scan/<id>/events`（SSE）、
@@ -136,6 +161,8 @@
 ./run.sh                                  # 启动服务（或桌面脚本）
 ~/Desktop/局域网扫描服务.command status    # 状态；start/stop/restart/open/toggle/log/help
 ./tests/run.sh                            # 跑全部测试（含启动脚本那套）
+./tests/auth_unit.py                       # 只跑认证单元测试（67 项，不需要服务）
+./tests/ui_lint.test.js                   # 前端静态自检：重名函数 / id 是否存在（22 项）
 ./tests/launcher.test.sh                  # 只跑桌面启动脚本测试（12 项）
 ./tests/docker_smoke.sh                   # 容器冒烟测试（27 项）
 ```

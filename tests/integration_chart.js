@@ -1,4 +1,5 @@
 const fs = require('fs'), vm = require('vm');
+require('./_auth_shim');   // 服务要登录：给 /api/ 请求带上本地令牌
 function makeEl(id) {
   const el = { id, innerHTML:'', textContent:'', value:'', checked:false, hidden:false, scrollTop:0, scrollHeight:100,
     dataset:{}, style:{}, options:[], _handlers:{},

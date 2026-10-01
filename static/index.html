@@ -69,6 +69,18 @@
         <span class="nav-badge" id="nav-devices-badge">0</span>
       </a>
 
+      <a class="nav-item" data-view="users" href="#/users" title="用户管理" id="nav-users" hidden>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="8" r="3.4"/>
+            <path d="M3.2 19.4c.6-3.1 3-4.9 5.8-4.9s5.2 1.8 5.8 4.9"/>
+            <path d="M16.4 5.4a3 3 0 0 1 0 5.6"/>
+            <path d="M17.6 14.9c2 .5 3.4 2.1 3.8 4.5"/>
+          </svg>
+        </span>
+        <span class="nav-label">用户管理</span>
+      </a>
+
       <a class="nav-item" data-view="about" href="#/about" title="关于与说明">
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -81,11 +93,26 @@
       </a>
     </nav>
 
+    <div class="sidebar-user" id="sidebar-user" hidden>
+      <span class="avatar" id="user-avatar">A</span>
+      <span class="sidebar-user-text">
+        <b id="user-name">—</b>
+        <i id="user-role">—</i>
+      </span>
+      <button class="icon-btn" id="logout-btn" title="退出登录" aria-label="退出登录">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 4.5h3.2a1.8 1.8 0 0 1 1.8 1.8v11.4a1.8 1.8 0 0 1-1.8 1.8H15"/>
+          <path d="M10 8.2 13.8 12 10 15.8"/>
+          <path d="M13.8 12H4.5"/>
+        </svg>
+      </button>
+    </div>
+
     <div class="sidebar-foot">
       <span class="dot" id="live-dot"></span>
       <span class="sidebar-foot-text">
         <b id="foot-state">空闲</b>
-        <i id="foot-sub">v1.3.0</i>
+        <i id="foot-sub">v1.4.0</i>
       </span>
     </div>
   </aside>
@@ -100,7 +127,7 @@
         </svg>
       </button>
       <h1 id="page-title">设备扫描</h1>
-      <span class="badge" id="version-badge">v1.3.0</span>
+      <span class="badge" id="version-badge">v1.4.0</span>
       <span class="topbar-spacer"></span>
       <span class="muted" id="host-info">检测本机网段中…</span>
     </header>
@@ -440,7 +467,8 @@
           <h2>使用提醒</h2>
           <div class="about-block">
             <ul class="about-list">
-              <li>服务默认监听 <code>0.0.0.0</code>，同一局域网内任何人都能打开本页并触发扫描；公共 Wi-Fi 上请用 <code>--host 127.0.0.1</code>。</li>
+              <li>服务默认监听 <code>0.0.0.0</code>，需要登录才能使用；<b>默认账号 <code>admin</code> / <code>admin</code>，首次登录会强制要求改密码</b>。</li>
+              <li>局域网里走的是明文 HTTP，Cookie 有 <code>HttpOnly</code> + <code>SameSite=Lax</code>，但没有 TLS；跨公网请在前面套 HTTPS 反代。</li>
               <li>ARP 只在本广播域有效，扫其他子网会退化成 ICMP + 端口探测。</li>
               <li>端口扫描是 connect 扫描，会留下完整 TCP 连接记录，只适合在自己网络里用。</li>
               <li>只扫描自己有权管理的网络。</li>
@@ -448,9 +476,156 @@
           </div>
         </section>
       </section>
+
+      <!-- ---------- 视图 6：用户管理（仅管理员可见） ---------- -->
+      <section class="view" id="view-users" hidden>
+        <section class="panel home-head">
+          <div class="home-head-left">
+            <h2>用户管理</h2>
+            <p class="muted" id="users-hint">管理员可以创建账号、重置密码、调整角色。</p>
+          </div>
+          <div class="home-head-right">
+            <button class="btn primary" id="user-add-btn">新建用户</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="table-wrap">
+            <table class="dev-table" id="user-table">
+              <thead>
+                <tr>
+                  <th>用户名</th>
+                  <th>角色</th>
+                  <th>状态</th>
+                  <th>最近登录</th>
+                  <th>创建时间</th>
+                  <th class="col-actions">操作</th>
+                </tr>
+              </thead>
+              <tbody id="user-rows"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="users-empty" hidden>还没有其他账号。</div>
+        </section>
+
+        <section class="panel">
+          <h2>修改我的密码</h2>
+          <div class="form-grid" id="self-password-form">
+            <label class="field">
+              <span>当前密码</span>
+              <input type="password" id="self-old" autocomplete="current-password" placeholder="当前密码">
+            </label>
+            <label class="field">
+              <span>新密码</span>
+              <input type="password" id="self-new" autocomplete="new-password" placeholder="至少 8 位">
+            </label>
+            <label class="field">
+              <span>确认新密码</span>
+              <input type="password" id="self-new2" autocomplete="new-password" placeholder="再输一次">
+            </label>
+            <div class="field field-actions">
+              <button class="btn primary" id="self-save">保存新密码</button>
+            </div>
+          </div>
+          <p class="muted form-note" id="self-password-msg"></p>
+        </section>
+      </section>
     </main>
   </div>
 </div>
+
+<!-- ============ 登录 / 强制改密（盖住整个界面） ============ -->
+<div class="auth-gate" id="auth-gate" hidden>
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="auth-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <circle cx="12" cy="12" r="2.6"/>
+          <path d="M12 5.2a6.8 6.8 0 0 1 6.8 6.8M12 1.6A10.4 10.4 0 0 1 22.4 12"/>
+          <path d="M12 18.8A6.8 6.8 0 0 1 5.2 12M12 22.4A10.4 10.4 0 0 1 1.6 12"/>
+        </svg>
+      </span>
+      <span>
+        <b>局域网工具</b>
+        <i id="auth-version">v1.4.0</i>
+      </span>
+    </div>
+
+    <!-- 登录 -->
+    <form class="auth-form" id="login-form" autocomplete="on">
+      <h2>登录</h2>
+      <p class="muted" id="login-hint">请输入账号密码</p>
+      <label class="field">
+        <span>用户名</span>
+        <input type="text" id="login-user" name="username" autocomplete="username"
+               autocapitalize="off" spellcheck="false" placeholder="用户名" required>
+      </label>
+      <label class="field">
+        <span>密码</span>
+        <input type="password" id="login-pass" name="password" autocomplete="current-password"
+               placeholder="密码" required>
+      </label>
+      <p class="auth-error" id="login-error" hidden></p>
+      <button class="btn primary auth-submit" id="login-submit" type="submit">登录</button>
+      <p class="muted auth-foot" id="login-foot">首次使用请用 admin / admin 登录，登录后会要求修改密码。</p>
+    </form>
+
+    <!-- 强制改密 -->
+    <form class="auth-form" id="force-form" hidden>
+      <h2>请修改初始密码</h2>
+      <p class="muted">默认密码不能继续使用。改完之前，其他功能都会被服务端拦住。</p>
+      <label class="field">
+        <span>当前密码</span>
+        <input type="password" id="force-old" autocomplete="current-password" placeholder="当前密码" required>
+      </label>
+      <label class="field">
+        <span>新密码</span>
+        <input type="password" id="force-new" autocomplete="new-password" placeholder="至少 8 位" required>
+      </label>
+      <label class="field">
+        <span>确认新密码</span>
+        <input type="password" id="force-new2" autocomplete="new-password" placeholder="再输一次" required>
+      </label>
+      <p class="auth-error" id="force-error" hidden></p>
+      <button class="btn primary auth-submit" id="force-submit" type="submit">设置新密码</button>
+      <button class="btn auth-cancel" type="button" id="force-logout">退出登录</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ 新建用户 / 重置密码 弹窗 ============ -->
+<dialog id="user-dialog">
+  <div class="dialog-head">
+    <h3 id="user-dialog-title">新建用户</h3>
+    <button class="ghost" id="user-dialog-close" type="button">关闭</button>
+  </div>
+  <div class="dialog-body">
+    <div class="form-grid">
+      <label id="user-name-field">
+        <span>用户名</span>
+        <input type="text" id="user-name-input" autocapitalize="off" spellcheck="false"
+               placeholder="字母、数字、. _ -">
+      </label>
+      <label id="user-role-field">
+        <span>角色</span>
+        <select id="user-role-input">
+          <option value="viewer">viewer — 只读</option>
+          <option value="admin">admin — 可管理</option>
+        </select>
+      </label>
+      <label class="full">
+        <span id="user-pass-label">初始密码</span>
+        <input type="password" id="user-pass-input" autocomplete="new-password" placeholder="至少 8 位">
+      </label>
+    </div>
+    <p class="muted form-note" id="user-dialog-note"></p>
+    <p class="auth-error" id="user-dialog-error" hidden></p>
+  </div>
+  <div class="dialog-foot">
+    <button class="ghost" id="user-dialog-cancel" type="button">取消</button>
+    <button class="btn primary" id="user-dialog-save" type="button">保存</button>
+  </div>
+</dialog>
 
 <!-- 设备详情 -->
 <dialog id="detail-dialog">
