@@ -415,6 +415,19 @@ Unraid 是 Linux 宿主机，**host 网络下容器直接进宿主的网络命�
 复制到 `/boot/config/plugins/dockerMan/templates-user/`，再在 **Docker → Add Container**
 的 Template 下拉里选它。
 
+**图标**：Unraid 的容器图标来自模板里的 `Icon URL`，必须是一张**方形 PNG 的公网地址**
+（Unraid 由服务器端去下载、然后本地缓存；给本地路径也可以）。
+本项目的图标是 `docs/icon.png`，模板里已经指向它的 raw 地址：
+
+```
+https://raw.githubusercontent.com/hzjackboy/lan-device-scanner/main/docs/icon.png
+```
+
+**已经建好的容器补图标**：Docker → 点容器名进编辑 → 拉到最后 **Icon URL** 填上面这行 → 应用。
+若仍是问号，说明 Unraid 拉不到（网络/代理问题），可以先把 icon.png 存到服务器上，
+再把 Icon URL 填成本地路径，例如 `/boot/config/plugins/dockerMan/images/lan-device-scanner.png`。
+图标是重生成的话：`python3 docs/make-icon.py`（需要 Pillow，仅用于画图，不是运行依赖）。
+
 #### 方式二：SSH 里直接 docker run
 
 ```bash

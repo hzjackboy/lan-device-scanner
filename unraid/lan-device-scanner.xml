@@ -33,7 +33,7 @@
   <Category>Network:Other Tools:Utilities:</Category>
   <WebUI>http://[IP]:[PORT:8765]/</WebUI>
   <TemplateURL/>
-  <Icon/>
+  <Icon>https://raw.githubusercontent.com/hzjackboy/lan-device-scanner/main/docs/icon.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
