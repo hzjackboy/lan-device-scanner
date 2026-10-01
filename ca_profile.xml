@@ -1,0 +1,26 @@
+<CommunityApplications>
+  <!-- 仓库维护者资料（Unraid Community Applications 用）
+       要求：文件名必须是 ca_profile.xml、放在仓库根目录、<Profile> 不能为空。 -->
+  <Profile>
+局域网设备扫描服务（lan-device-scanner）—— 一台能看清自家网络的工具。
+
+路由器后台只给你一份 DHCP 租约列表（IP + 主机名），既看不出厂商、也没有历史。这个容器补的就是这块：**认出是什么设备，并且记住它**。
+
+打开页面就能看到局域网里所有联网设备——IP、MAC、厂商、主机名、设备类型、开放端口、延迟，并且把它们长期记成一本可编辑的台账：掉线的设备不删除，谁来过、谁什么时候走的都查得到。
+
+**这个仓库目前只维护这一个 Docker 应用：**
+
+| 应用 | 说明 |
+| --- | --- |
+| lan-device-scanner | 零依赖的局域网设备扫描器：Python 标准库后端 + 原生 JS 前端，不需要 root、不装任何第三方包 |
+
+**镜像**：`hzjackboy/lan-device-scanner`（Docker Hub，amd64 + arm64 多架构）
+
+**⚠️ 安装时网络类型必须选 `Host`**：这个工具靠 ARP（二层广播域）发现设备，bridge 网络下容器被 NAT，容器的 `/proc/net/arp` 里只有 docker 网段，扫不到真实局域网。模板里已预设为 host。
+
+**获取帮助 / 反馈问题**：https://github.com/hzjackboy/lan-device-scanner/issues —— 提交 issue 前建议先跑 `docker logs lan-device-scanner` 看一眼日志。
+  </Profile>
+
+  <Icon>https://raw.githubusercontent.com/hzjackboy/lan-device-scanner/main/docs/icon.svg</Icon>
+  <WebPage>https://github.com/hzjackboy/lan-device-scanner</WebPage>
+</CommunityApplications>

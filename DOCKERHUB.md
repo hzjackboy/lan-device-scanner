@@ -49,7 +49,7 @@ Docker 默认的 bridge 网络里容器被 NAT，容器的 `/proc/net/arp` 里�
 **Unraid 7**：Docker → Add Container，Repository 填 `hzjackboy/lan-device-scanner:latest`，
 **Network Type 必须选 `Host`**（别用 Bridge），加一个 Path `/app/data` → `/mnt/user/appdata/lan-device-scanner`
 和一个 Variable `TZ=Asia/Shanghai` 即可，**不要加端口映射**。
-仓库里带了现成的模板 `unraid/lan-device-scanner.xml`，放进
+仓库里带了现成的模板 `templates/lan-device-scanner.xml`，放进
 `/boot/config/plugins/dockerMan/templates-user/` 就能在 Template 下拉里选到。
 
 ---

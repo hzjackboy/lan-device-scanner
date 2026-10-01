@@ -411,7 +411,7 @@ Unraid 是 Linux 宿主机，**host 网络下容器直接进宿主的网络命�
 > **不要加 Port 映射**：host 网络下端口直接占用宿主机，加映射是无效的（Unraid 会忽略）。
 > 容器起来后就是 `http://<你的 Unraid IP>:8765`。
 
-也可以把仓库里的模板导入：`unraid/lan-device-scanner.xml`
+也可以把仓库里的模板导入：`templates/lan-device-scanner.xml`
 复制到 `/boot/config/plugins/dockerMan/templates-user/`，再在 **Docker → Add Container**
 的 Template 下拉里选它。
 

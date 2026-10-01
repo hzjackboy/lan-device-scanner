@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<!--
+  Unraid 容器模板：局域网设备扫描服务
+
+  ⚠️ 网络模式必须是 host：这个工具靠 ARP（二层广播域）发现设备，
+     bridge 网络下容器被 NAT，/proc/net/arp 里只有 docker 网段，扫不到真实局域网。
+     host 网络下端口直接占用宿主机，所以这里不配置端口映射。
+
+  用法：
+    1. Community Applications 里直接搜 lan-device-scanner 安装（已提交审核）
+    2. 或手动：Docker → Add Container，Repository 填下面这个镜像，
+       Network Type 选 Host，加 Path /app/data 与 Variable TZ
+-->
+<Container version="2">
+  <Name>lan-device-scanner</Name>
+  <Repository>hzjackboy/lan-device-scanner:latest</Repository>
+  <Registry>https://hub.docker.com/r/hzjackboy/lan-device-scanner</Registry>
+
+  <Network>host</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+
+  <Icon>https://raw.githubusercontent.com/hzjackboy/lan-device-scanner/main/docs/icon.png</Icon>
+
+  <!-- 注意：这里的端口指容器内端口，不是宿主机端口 -->
+  <WebUI>http://[IP]:[PORT:8765]/</WebUI>
+
+  <Overview>零依赖的局域网设备扫描服务：认出设备、记住设备，不需要 root，也不装任何第三方包。
+
+打开页面就能看到局域网里所有联网设备——IP、MAC、厂商、主机名、设备类型、开放端口、延迟，并且把它们长期记成一本可编辑的台账：掉线的设备不删除，谁来过、谁什么时候走的都查得到。
+
+发现手段：ARP 缓存 → UDP 触发 ARP 解析（非 root 拿真实 MAC，能发现禁 ping 的设备）→ 并发 ICMP → mDNS/Bonjour → 反向 DNS → NetBIOS → TCP 端口指纹。
+
+主要功能：设备台账（别名 / 分类 / 位置 / 标签 / 备注 / 图标，重扫不覆盖人工内容）、在线离线饼图、设备方块墙（列表 / 大 / 中 / 小四种展示密度）、扫描历史、网段热力图、CSV/JSON 导出、服务端定时重扫。
+
+⚠️ 安装时网络类型必须是 Host，否则扫不到真实局域网。</Overview>
+
+  <Description>局域网设备扫描服务 —— 零依赖 Python 扫描引擎 + 实时 Web 界面。
+
+**安装后**：浏览器打开 `http://你的UnraidIP:8765`，选网段 → 点「开始扫描」。
+
+**关于网络类型**：必须是 `Host`。这个工具靠 ARP（二层广播域）发现设备，bridge 网络下容器被 NAT，容器的 `/proc/net/arp` 里只有 docker 网段，扫不到真实局域网。host 网络下端口直接占用宿主机 8765，所以不要配端口映射。
+
+**持久化**：台账、日志、定时重扫配置都在 `/app/data`，模板里已映射到 `/mnt/user/appdata/lan-device-scanner`。建议放在缓存池上，避免每次扫描唤醒机械盘阵列。
+
+**可选：更全的厂商表**（内内置 2600+ 条常见厂商，全量表 4 万条需另外下载）：
+
+```
+docker exec lan-device-scanner python3 update_oui.py --out /app/data/oui.csv
+docker restart lan-device-scanner
+```
+
+**安全提示**：容器本身没有认证，同一个局域网内任何人都能打开页面并触发扫描。只在可信网络里运行；要暴露给非可信网络，请在前面套一层带认证的反向代理，并确保该代理转发 SSE 且关闭响应缓冲（Nginx 里 `proxy_buffering off;`），否则页面不会实时刷新。
+
+请只扫描自己有权管理的网络。</Description>
+
+  <!-- Either Support or Project is REQUIRED -->
+  <Support>https://github.com/hzjackboy/lan-device-scanner/issues</Support>
+  <Project>https://github.com/hzjackboy/lan-device-scanner</Project>
+
+  <!-- 本模板文件的 raw 地址 -->
+  <TemplateURL>https://raw.githubusercontent.com/hzjackboy/lan-device-scanner/main/templates/lan-device-scanner.xml</TemplateURL>
+
+  <ReadMe>https://raw.githubusercontent.com/hzjackboy/lan-device-scanner/main/README.md</ReadMe>
+
+  <Category>Network:Other Tools:Utilities</Category>
+  <ExtraSearchTerms>lan scan arp mdns network devices inventory 局域网 扫描 设备 台账</ExtraSearchTerms>
+  <Requires>安装时网络类型必须选 Host（bridge 下 ARP 扫不到局域网）</Requires>
+
+  <Changes>v1.3.0：设备总览支持列表 / 大 / 中 / 小四种展示密度；按常见分辨率适配；设备图标可人工指定；Unraid 容器模板</Changes>
+  <Date>2026-09-30</Date>
+
+  <MinVer>6.1</MinVer>
+  <MaxVer>7.3</MaxVer>
+
+  <License>MIT</License>
+
+  <Screenshot>https://raw.githubusercontent.com/hzjackboy/lan-device-scanner/main/docs/screenshot-home.png</Screenshot>
+
+  <!-- v2 模板用 Config 定义路径 / 变量 / 端口 -->
+  <Config Name="台账目录" Target="/app/data" Default="/mnt/user/appdata/lan-device-scanner" Mode="rw" Description="设备台账 devices.json、日志 server.log、定时重扫配置 auto.json 都写在这里。建议放在缓存池上（如 /mnt/cache/appdata/...），避免每次扫描唤醒机械盘阵列。" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/lan-device-scanner</Config>
+  <Config Name="时区" Target="TZ" Default="Asia/Shanghai" Mode="" Description="日志与界面显示用的时区" Type="Variable" Display="always" Required="false" Mask="false">Asia/Shanghai</Config>
+  <Config Name="WebUI 端口" Target="8765" Default="8765" Mode="tcp" Description="host 网络下直接占用宿主机端口，改这里不生效。真要换端口，请在 Post Arguments 里写完整启动命令：python3 server.py --host 0.0.0.0 --port 8899" Type="Port" Display="always" Required="false" Mask="false">8765</Config>
+</Container>

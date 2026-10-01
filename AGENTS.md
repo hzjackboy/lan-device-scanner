@@ -11,13 +11,19 @@
   （日志 `data/server.log`，进程号 `data/server.pid`）
 - **镜像**：Docker Hub 公开镜像 `hzjackboy/lan-device-scanner`（amd64 + arm64 多架构），
   发版用 `./docker-push.sh hzjackboy 1.3.0 latest` 一条命令推
-- **仓库**：私有 `hzjackboy/lan-device-scanner`，本机 `gh` 已登录该账号
+- **仓库**：**公开** `hzjackboy/lan-device-scanner`（MIT 许可），本机 `gh` 已登录该账号。
+  历史曾被 `git filter-repo` 重写过（清理真实设备信息），2026-09-30 删库重建过以获得干净的对象存储
 - **数据**：`data/devices.json`（设备台账，含真实 MAC/IP/主机名）、`data/auto.json`（定时重扫配置）
   —— 都在 `.gitignore` 里，**绝不要提交**
 - **测试**：`./tests/run.sh`（5 套离线 UI + 3 套联调 + 1 套启动脚本；服务在跑时自动附带联调）
 - **文档地图**：`PRD.md`（产品需求：目标 / 用户画像 / 19 条需求优先级 / 逐条验收标准 / 路线图）、
   `README.md`（安装使用与排错）、`DOCKERHUB.md`（Docker Hub 仓库页的 Overview 正文，
   由 `docker-push.sh` 推送上去）、`CHANGELOG.md`（版本变更）、本文件（架构与踩坑）
+- **Unraid / Community Applications**：`ca_profile.xml`（**必须在仓库根目录**，`<Profile>` 不能为空，
+  否则提交被拦）、`templates/lan-device-scanner.xml`（容器模板，`templates/` 是 CA 的约定目录）、
+  `docs/icon.png`（容器图标，方形 PNG）+ `docs/icon.svg`（维护者资料图标，矢量）。
+  提交走 <https://ca.unraid.net/submit/new> 的网页流程（**要登录 Unraid 账号**，DSH 代替不了），
+  仓库侧硬性要求：public + 根目录有 OSI 许可（已加 MIT）+ ca_profile.xml + 合法模板 XML。
 
 ## 架构
 

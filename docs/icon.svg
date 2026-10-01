@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="局域网设备扫描服务">
+  <title>局域网设备扫描服务</title>
+  <!-- 与 docs/icon.png 同一套设计：深色圆角底 + 雷达同心圆 + 中心点 + 三个「设备」绿点。
+       矢量版给 Unraid 的维护者资料用（可无损缩放）。改设计请同步改 docs/make-icon.py。 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#17222f"/>
+      <stop offset="1" stop-color="#0d1117"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="113" fill="url(#bg)"/>
+  <rect x="1.75" y="1.75" width="508.5" height="508.5" rx="111" fill="none" stroke="#253040" stroke-width="3.5"/>
+
+  <!-- 雷达同心圆：越往外越淡 -->
+  <g fill="none" stroke="#60a5fa" stroke-width="14.3">
+    <circle cx="256" cy="256" r="76.8"  opacity="1"/>
+    <circle cx="256" cy="256" r="128"   opacity="0.843"/>
+    <circle cx="256" cy="256" r="179.2" opacity="0.588"/>
+  </g>
+
+  <!-- 中心点 -->
+  <circle cx="256" cy="256" r="28.2" fill="#60a5fa"/>
+
+  <!-- 三个「设备」点：先画深色光晕把圆环断开，再画绿点 -->
+  <g>
+    <circle cx="340.1" cy="97.8"  r="34.8" fill="#0d1117"/>
+    <circle cx="143.0" cy="316.1" r="30.5" fill="#0d1117"/>
+    <circle cx="322.5" cy="294.4" r="26.1" fill="#0d1117"/>
+  </g>
+  <g fill="#34d399">
+    <circle cx="340.1" cy="97.8"  r="24"/>
+    <circle cx="143.0" cy="316.1" r="21"/>
+    <circle cx="322.5" cy="294.4" r="18"/>
+  </g>
+</svg>

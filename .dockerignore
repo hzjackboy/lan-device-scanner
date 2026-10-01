@@ -13,4 +13,4 @@ docs/
 *.md
 docker-compose.yml
 Dockerfile
-unraid/
+templates/
